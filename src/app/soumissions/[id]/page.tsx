@@ -32,6 +32,7 @@ export type OuvertureRow = {
   polymat_haut_hauteur_po: number | null;
   polymat_bas_hauteur_po: number | null;
   souffleurs_count: number | null;
+  souffleurs_aux_deux_extremites: boolean;
 };
 
 function toDraft(op: OuvertureRow): OpeningDraft {
@@ -56,6 +57,7 @@ function toDraft(op: OuvertureRow): OpeningDraft {
         : "",
     souffleurs_count:
       op.souffleurs_count !== null ? String(op.souffleurs_count) : "",
+    souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites === true,
   };
 }
 
@@ -82,7 +84,7 @@ export default async function SoumissionDetailPage({
   const { data: ouverturesData } = await supabase
     .from("ouvertures")
     .select(
-      "id, order_index, longueur_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count",
+      "id, order_index, longueur_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_aux_deux_extremites",
     )
     .eq("soumission_id", id)
     .order("order_index");

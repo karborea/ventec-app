@@ -26,6 +26,7 @@ type OpeningPayload = {
   polymat_haut_hauteur_po?: number | null;
   polymat_bas_hauteur_po?: number | null;
   souffleurs_count?: number | null;
+  souffleurs_aux_deux_extremites?: boolean;
 };
 
 type FormPayload = {
@@ -87,6 +88,8 @@ function parsePayload(raw: unknown): FormPayload | null {
       polymat_haut_hauteur_po: toInt(op.polymat_haut_hauteur_po),
       polymat_bas_hauteur_po: toInt(op.polymat_bas_hauteur_po),
       souffleurs_count: toInt(op.souffleurs_count),
+      souffleurs_aux_deux_extremites:
+        op.souffleurs_aux_deux_extremites === true,
     };
   });
 
@@ -194,6 +197,7 @@ export async function createNouvelleCommande(
     polymat_haut_hauteur_po: op.polymat_haut_hauteur_po ?? null,
     polymat_bas_hauteur_po: op.polymat_bas_hauteur_po ?? null,
     souffleurs_count: op.souffleurs_count ?? null,
+    souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites ?? false,
   }));
 
   if (ouverturesRows.length > 0) {
@@ -299,6 +303,7 @@ export async function updateNouvelleCommande(
     polymat_haut_hauteur_po: op.polymat_haut_hauteur_po ?? null,
     polymat_bas_hauteur_po: op.polymat_bas_hauteur_po ?? null,
     souffleurs_count: op.souffleurs_count ?? null,
+    souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites ?? false,
   }));
 
   if (ouverturesRows.length > 0) {

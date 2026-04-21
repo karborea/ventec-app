@@ -227,6 +227,10 @@ export function SoumissionReadonly({
                     : "—"
                 }
               />
+              <Field
+                label="Souffleries aux deux extrémités"
+                value={op.souffleurs_aux_deux_extremites ? "Oui" : "Non"}
+              />
             </dl>
           </div>
         ))

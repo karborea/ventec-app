@@ -30,6 +30,7 @@ export type OpeningDraft = {
   polymat_haut_hauteur_po: string;
   polymat_bas_hauteur_po: string;
   souffleurs_count: string;
+  souffleurs_aux_deux_extremites: boolean;
 };
 
 type FormAction = (
@@ -67,6 +68,7 @@ function emptyOpening(): OpeningDraft {
     polymat_haut_hauteur_po: "",
     polymat_bas_hauteur_po: "",
     souffleurs_count: "",
+    souffleurs_aux_deux_extremites: false,
   };
 }
 
@@ -324,6 +326,11 @@ export function NouvelleCommandeForm({
                       <dt className="text-[#5a6278]">Souffleurs</dt>
                       <dd className="font-semibold">
                         {op.souffleurs_count || "—"}
+                        {op.souffleurs_aux_deux_extremites && (
+                          <span className="ml-1.5 text-[11px] font-normal text-[#5a6278]">
+                            · 2 extrémités
+                          </span>
+                        )}
                       </dd>
                     </div>
                     <div className="flex justify-between gap-3 pt-1.5 mt-1 border-t border-dashed border-[#e3e6ec]">
@@ -787,6 +794,28 @@ export function NouvelleCommandeForm({
                   </div>
                 </div>
               )}
+
+              <label className="mt-4 flex items-start gap-3 p-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white hover:border-[#1b9ae0] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={active.souffleurs_aux_deux_extremites}
+                  onChange={(e) =>
+                    updateActive({
+                      souffleurs_aux_deux_extremites: e.target.checked,
+                    })
+                  }
+                  className="w-5 h-5 mt-0.5 accent-[#1b9ae0] shrink-0 cursor-pointer"
+                />
+                <div>
+                  <div className="font-semibold text-[14px]">
+                    Souffleries aux deux extrémités
+                  </div>
+                  <div className="text-[13px] text-[#5a6278]">
+                    Cochez si des souffleurs sont installés à gauche ET à
+                    droite de l&apos;ouverture.
+                  </div>
+                </div>
+              </label>
             </section>
             </div>
           </div>
