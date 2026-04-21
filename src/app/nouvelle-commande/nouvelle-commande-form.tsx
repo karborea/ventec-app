@@ -636,53 +636,55 @@ export function NouvelleCommandeForm({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
-                        Polymat du haut
-                      </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
+                          Polymat du haut
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          value={active.polymat_haut_hauteur_po}
+                          onChange={(e) =>
+                            updateActive({
+                              polymat_haut_hauteur_po: e.target.value,
+                            })
+                          }
+                          placeholder="62"
+                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                          po
+                        </span>
+                      </div>
                     </div>
-                    <div className="max-w-[260px] relative">
-                      <input
-                        type="number"
-                        min={0}
-                        value={active.polymat_haut_hauteur_po}
-                        onChange={(e) =>
-                          updateActive({
-                            polymat_haut_hauteur_po: e.target.value,
-                          })
-                        }
-                        placeholder="62"
-                        className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
-                        po
-                      </span>
-                    </div>
-                  </div>
 
-                  <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="bg-[#1a1f2e] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
-                        Polymat du bas
-                      </span>
-                    </div>
-                    <div className="max-w-[260px] relative">
-                      <input
-                        type="number"
-                        min={0}
-                        value={active.polymat_bas_hauteur_po}
-                        onChange={(e) =>
-                          updateActive({
-                            polymat_bas_hauteur_po: e.target.value,
-                          })
-                        }
-                        placeholder="70"
-                        className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
-                        po
-                      </span>
+                    <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="bg-[#1a1f2e] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
+                          Polymat du bas
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          value={active.polymat_bas_hauteur_po}
+                          onChange={(e) =>
+                            updateActive({
+                              polymat_bas_hauteur_po: e.target.value,
+                            })
+                          }
+                          placeholder="70"
+                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                          po
+                        </span>
+                      </div>
                     </div>
                   </div>
 
