@@ -198,3 +198,104 @@ export async function createNouvelleCommande(
     `/mes-soumissions?created=${soumission.soumission_number}&status=${status}`,
   );
 }
+
+export async function updateNouvelleCommande(
+  soumissionId: string,
+  _prev: SoumissionFormState | undefined,
+  formData: FormData,
+): Promise<SoumissionFormState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Vous devez être connecté." };
+  }
+
+  const payload = parsePayload(formData.get("payload"));
+  if (!payload) {
+    return { error: "Formulaire invalide. Le nom du projet est requis." };
+  }
+
+  // Verify ownership + draft status
+  const { data: existing } = await supabase
+    .from("soumissions")
+    .select("id, user_id, status, soumission_number")
+    .eq("id", soumissionId)
+    .maybeSingle();
+
+  if (!existing || existing.user_id !== user.id) {
+    return { error: "Soumission introuvable." };
+  }
+  if (existing.status !== "brouillon") {
+    return {
+      error:
+        "Cette soumission n'est plus modifiable (déjà envoyée à Ventec).",
+    };
+  }
+
+  const action = formData.get("action");
+  const isSubmit = action === "submit";
+
+  if (isSubmit) {
+    const v = validateForSubmission(payload);
+    if (!v.ok) {
+      return { error: v.error };
+    }
+  }
+
+  // 1. Update soumission header
+  const { error: updErr } = await supabase
+    .from("soumissions")
+    .update({
+      project_name: payload.project_name,
+      status: isSubmit ? "soumis" : "brouillon",
+      submitted_at: isSubmit ? new Date().toISOString() : null,
+    })
+    .eq("id", soumissionId);
+
+  if (updErr) {
+    return { error: "Impossible de mettre à jour la soumission." };
+  }
+
+  // 2. Replace ouvertures : delete all + re-insert
+  //    (simpler than diffing; safe because RLS restricts to owner)
+  const { error: delErr } = await supabase
+    .from("ouvertures")
+    .delete()
+    .eq("soumission_id", soumissionId);
+
+  if (delErr) {
+    return { error: "Impossible de mettre à jour les ouvertures." };
+  }
+
+  const ouverturesRows = payload.openings.map((op, idx) => ({
+    soumission_id: soumissionId,
+    order_index: idx + 1,
+    longueur_po: op.longueur_po ?? null,
+    materiau_haut: op.materiau_haut ?? null,
+    materiau_bas: op.materiau_bas ?? null,
+    rideau_type: op.rideau_type ?? null,
+    polymat_unique_hauteur_po: op.polymat_unique_hauteur_po ?? null,
+    polymat_haut_hauteur_po: op.polymat_haut_hauteur_po ?? null,
+    polymat_bas_hauteur_po: op.polymat_bas_hauteur_po ?? null,
+    souffleurs_count: op.souffleurs_count ?? null,
+  }));
+
+  if (ouverturesRows.length > 0) {
+    const { error: insErr } = await supabase
+      .from("ouvertures")
+      .insert(ouverturesRows);
+    if (insErr) {
+      return { error: "Impossible de sauvegarder les ouvertures." };
+    }
+  }
+
+  revalidatePath("/mes-soumissions");
+  revalidatePath(`/soumissions/${soumissionId}`);
+  const status = isSubmit ? "soumis" : "brouillon";
+  redirect(
+    `/mes-soumissions?created=${existing.soumission_number}&status=${status}`,
+  );
+}

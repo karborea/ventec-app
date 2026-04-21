@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
+import { createNouvelleCommande } from "@/app/actions/soumissions";
 import { NouvelleCommandeForm } from "./nouvelle-commande-form";
 
 export const metadata = {
@@ -26,7 +27,7 @@ export default function NouvelleCommandePage() {
       </div>
 
       <main className="max-w-6xl mx-auto px-6 py-8 pb-20">
-        <NouvelleCommandeForm />
+        <NouvelleCommandeForm action={createNouvelleCommande} />
       </main>
     </>
   );

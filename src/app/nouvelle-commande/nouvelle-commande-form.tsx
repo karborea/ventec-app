@@ -1,10 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import {
-  createNouvelleCommande,
-  type SoumissionFormState,
-} from "@/app/actions/soumissions";
+import type { SoumissionFormState } from "@/app/actions/soumissions";
 import {
   KIT_EXTREMITE_PO,
   longueurTotale,
@@ -22,7 +19,7 @@ function parseNum(s: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-type OpeningDraft = {
+export type OpeningDraft = {
   longueur_po: string;
   materiau_haut: Materiau;
   materiau_bas: Materiau;
@@ -31,6 +28,18 @@ type OpeningDraft = {
   polymat_haut_hauteur_po: string;
   polymat_bas_hauteur_po: string;
   souffleurs_count: string;
+};
+
+type FormAction = (
+  prev: SoumissionFormState | undefined,
+  formData: FormData,
+) => Promise<SoumissionFormState>;
+
+type Props = {
+  action: FormAction;
+  initialProjectName?: string;
+  initialOpenings?: OpeningDraft[];
+  cancelHref?: string;
 };
 
 const MATERIAU_OPTIONS: { value: Materiau; label: string; color: string }[] = [
@@ -63,14 +72,23 @@ function formatInches(raw: string): string {
   return `${raw} po`;
 }
 
-export function NouvelleCommandeForm() {
+export function NouvelleCommandeForm({
+  action,
+  initialProjectName = "",
+  initialOpenings,
+  cancelHref = "/mes-soumissions",
+}: Props) {
   const [state, formAction, pending] = useActionState<
     SoumissionFormState,
     FormData
-  >(createNouvelleCommande, {});
+  >(action, {});
 
-  const [projectName, setProjectName] = useState("");
-  const [openings, setOpenings] = useState<OpeningDraft[]>([emptyOpening()]);
+  const [projectName, setProjectName] = useState(initialProjectName);
+  const [openings, setOpenings] = useState<OpeningDraft[]>(
+    initialOpenings && initialOpenings.length > 0
+      ? initialOpenings
+      : [emptyOpening()],
+  );
   const [activeIndex, setActiveIndex] = useState(0);
 
   const active = openings[activeIndex];
@@ -720,7 +738,7 @@ export function NouvelleCommandeForm() {
           {/* Actions */}
           <div className="mt-5 flex justify-between items-center gap-3 flex-wrap">
             <a
-              href="/mes-soumissions"
+              href={cancelHref}
               className="text-sm font-semibold text-[#5a6278] hover:text-[#1a1f2e]"
             >
               ← Annuler
