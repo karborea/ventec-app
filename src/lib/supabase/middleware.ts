@@ -30,9 +30,13 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect /mes-soumissions and other authed pages
+  // Protect authed pages
   const pathname = request.nextUrl.pathname;
-  const isProtected = pathname.startsWith("/mes-soumissions");
+  const isProtected =
+    pathname.startsWith("/mes-soumissions") ||
+    pathname.startsWith("/nouvelle-commande") ||
+    pathname.startsWith("/remplacement") ||
+    pathname.startsWith("/soumissions/");
   const isAuthPage =
     pathname.startsWith("/login") || pathname.startsWith("/signup");
 
