@@ -24,6 +24,7 @@ export type OuvertureRow = {
   id: string;
   order_index: number;
   longueur_po: number | null;
+  longueur_totale_po: number | null;
   materiau_haut: "bois" | "acier" | "beton" | null;
   materiau_bas: "bois" | "acier" | "beton" | null;
   rideau_type: "simple" | "double" | null;
@@ -38,6 +39,8 @@ export type OuvertureRow = {
 function toDraft(op: OuvertureRow): OpeningDraft {
   return {
     longueur_po: op.longueur_po !== null ? String(op.longueur_po) : "",
+    longueur_totale_po:
+      op.longueur_totale_po !== null ? String(op.longueur_totale_po) : "",
     materiau_haut: (op.materiau_haut ?? "bois") as OpeningDraft["materiau_haut"],
     materiau_bas: (op.materiau_bas ?? "acier") as OpeningDraft["materiau_bas"],
     rideau_type: (op.rideau_type ?? "simple") as OpeningDraft["rideau_type"],
@@ -84,7 +87,7 @@ export default async function SoumissionDetailPage({
   const { data: ouverturesData } = await supabase
     .from("ouvertures")
     .select(
-      "id, order_index, longueur_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_aux_deux_extremites",
+      "id, order_index, longueur_po, longueur_totale_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_aux_deux_extremites",
     )
     .eq("soumission_id", id)
     .order("order_index");

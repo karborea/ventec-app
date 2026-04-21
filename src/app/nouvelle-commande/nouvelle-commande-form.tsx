@@ -23,6 +23,7 @@ function parseNum(s: string): number | null {
 
 export type OpeningDraft = {
   longueur_po: string;
+  longueur_totale_po: string;
   materiau_haut: Materiau;
   materiau_bas: Materiau;
   rideau_type: RideauType;
@@ -61,6 +62,7 @@ const MATERIAU_LABELS: Record<Materiau, string> = {
 function emptyOpening(): OpeningDraft {
   return {
     longueur_po: "",
+    longueur_totale_po: "",
     materiau_haut: "bois",
     materiau_bas: "acier",
     rideau_type: "simple",
@@ -300,6 +302,17 @@ export function NouvelleCommandeForm({
                         </dd>
                       </div>
                     )}
+                    {op.rideau_type === "double" &&
+                      op.rideau_grandeur === "standard" && (
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-[#5a6278]">Longueur totale</dt>
+                          <dd className="font-semibold">
+                            {op.longueur_totale_po
+                              ? `${op.longueur_totale_po} po`
+                              : "—"}
+                          </dd>
+                        </div>
+                      )}
                     {op.rideau_type === "simple" ? (
                       <div className="flex justify-between gap-3">
                         <dt className="text-[#5a6278]">Hauteur</dt>
@@ -582,6 +595,42 @@ export function NouvelleCommandeForm({
                       </div>
                     </button>
                   </div>
+
+                  {/* Additional dimension required for Standard double curtains */}
+                  {active.rideau_grandeur === "standard" && (
+                    <div className="mt-4 pt-4 border-t border-dashed border-[#e3e6ec]">
+                      <label
+                        htmlFor="longueur-totale"
+                        className="block text-sm font-semibold mb-1 flex items-center gap-2"
+                      >
+                        Longueur de l&apos;ouverture totale{" "}
+                        <span className="text-[#f37021]">*</span>
+                        <MeasurementGuideButton compact />
+                      </label>
+                      <p className="text-xs text-[#5a6278] mb-2.5">
+                        Requis pour un rideau double standard. Indiquez la
+                        longueur totale à couvrir, en pouces.
+                      </p>
+                      <div className="max-w-[260px] relative">
+                        <input
+                          id="longueur-totale"
+                          type="number"
+                          min={0}
+                          value={active.longueur_totale_po}
+                          onChange={(e) =>
+                            updateActive({
+                              longueur_totale_po: e.target.value,
+                            })
+                          }
+                          placeholder="1440"
+                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                          po
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </section>

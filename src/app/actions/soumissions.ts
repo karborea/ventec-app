@@ -18,6 +18,7 @@ type RideauGrandeur = "standard" | "hors_standard";
 
 type OpeningPayload = {
   longueur_po?: number | null;
+  longueur_totale_po?: number | null;
   materiau_haut?: Materiau | null;
   materiau_bas?: Materiau | null;
   rideau_type?: RideauType | null;
@@ -77,13 +78,18 @@ function parsePayload(raw: unknown): FormPayload | null {
       RIDEAU_GRANDEURS.has(op.rideau_grandeur as RideauGrandeur)
         ? (op.rideau_grandeur as RideauGrandeur)
         : null;
+    const cleanedGrandeur = rt === "double" ? rg : null;
     return {
       longueur_po: toInt(op.longueur_po),
+      // Only used when double + standard; zero out otherwise to avoid stale data
+      longueur_totale_po:
+        rt === "double" && cleanedGrandeur === "standard"
+          ? toInt(op.longueur_totale_po)
+          : null,
       materiau_haut: mh,
       materiau_bas: mb,
       rideau_type: rt,
-      // Only keep rideau_grandeur when double (safety against stale state)
-      rideau_grandeur: rt === "double" ? rg : null,
+      rideau_grandeur: cleanedGrandeur,
       polymat_unique_hauteur_po: toInt(op.polymat_unique_hauteur_po),
       polymat_haut_hauteur_po: toInt(op.polymat_haut_hauteur_po),
       polymat_bas_hauteur_po: toInt(op.polymat_bas_hauteur_po),
@@ -131,6 +137,12 @@ function validateForSubmission(
         return {
           ok: false,
           error: `Ouverture ${n} : sélectionnez la grandeur du rideau double (standard ou hors-standard).`,
+        };
+      }
+      if (op.rideau_grandeur === "standard" && !op.longueur_totale_po) {
+        return {
+          ok: false,
+          error: `Ouverture ${n} : la longueur de l'ouverture totale est requise pour un rideau double standard.`,
         };
       }
     }
@@ -189,6 +201,7 @@ export async function createNouvelleCommande(
     soumission_id: soumission.id,
     order_index: idx + 1,
     longueur_po: op.longueur_po ?? null,
+    longueur_totale_po: op.longueur_totale_po ?? null,
     materiau_haut: op.materiau_haut ?? null,
     materiau_bas: op.materiau_bas ?? null,
     rideau_type: op.rideau_type ?? null,
@@ -295,6 +308,7 @@ export async function updateNouvelleCommande(
     soumission_id: soumissionId,
     order_index: idx + 1,
     longueur_po: op.longueur_po ?? null,
+    longueur_totale_po: op.longueur_totale_po ?? null,
     materiau_haut: op.materiau_haut ?? null,
     materiau_bas: op.materiau_bas ?? null,
     rideau_type: op.rideau_type ?? null,

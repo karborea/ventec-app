@@ -190,6 +190,17 @@ export function SoumissionReadonly({
                   }
                 />
               )}
+              {op.rideau_type === "double" &&
+                op.rideau_grandeur === "standard" && (
+                  <Field
+                    label="Longueur de l'ouverture totale"
+                    value={
+                      op.longueur_totale_po !== null
+                        ? `${op.longueur_totale_po} po`
+                        : "—"
+                    }
+                  />
+                )}
               {op.rideau_type === "simple" ? (
                 <Field
                   label="Hauteur du polymat"
