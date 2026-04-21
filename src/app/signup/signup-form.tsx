@@ -90,7 +90,7 @@ export function SignupForm() {
           className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
         />
         <p className="text-xs text-[#5a6278] mt-1">
-          Le nom qui apparaîtra sur votre devis PDF.
+          Le nom qui apparaîtra sur votre soumission PDF.
         </p>
       </div>
 

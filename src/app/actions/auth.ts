@@ -28,7 +28,7 @@ export async function login(
   }
 
   revalidatePath("/", "layout");
-  redirect("/mes-devis");
+  redirect("/mes-soumissions");
 }
 
 export async function signup(
@@ -88,7 +88,7 @@ export async function signup(
   // If email confirmation is disabled in Supabase, a session is created right away.
   if (data.session) {
     revalidatePath("/", "layout");
-    redirect("/mes-devis");
+    redirect("/mes-soumissions");
   }
 
   // Otherwise, user needs to confirm via email.

@@ -10,7 +10,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Ventec",
   description:
-    "Espace client Ventec — gérez vos devis de Polymat et suivez vos commandes.",
+    "Espace client Ventec — gérez vos soumissions de Polymat et suivez vos commandes.",
 };
 
 export default function RootLayout({

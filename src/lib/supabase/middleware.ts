@@ -30,9 +30,9 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect /mes-devis and other authed pages
+  // Protect /mes-soumissions and other authed pages
   const pathname = request.nextUrl.pathname;
-  const isProtected = pathname.startsWith("/mes-devis");
+  const isProtected = pathname.startsWith("/mes-soumissions");
   const isAuthPage =
     pathname.startsWith("/login") || pathname.startsWith("/signup");
 
@@ -44,7 +44,7 @@ export async function updateSession(request: NextRequest) {
 
   if (user && isAuthPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/mes-devis";
+    url.pathname = "/mes-soumissions";
     return NextResponse.redirect(url);
   }
 

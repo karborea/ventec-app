@@ -25,7 +25,7 @@ export default function SignupPage() {
           Créer votre compte
         </h1>
         <p className="text-sm text-[#5a6278] mb-6">
-          Gérez vos devis de Polymat, suivez vos commandes et recevez vos
+          Gérez vos soumissions de Polymat, suivez vos commandes et recevez vos
           documents directement dans votre espace.
         </p>
 
@@ -33,7 +33,7 @@ export default function SignupPage() {
 
         <p className="mt-5 text-center text-xs text-[#5a6278]">
           Vos coordonnées complètes (adresse, livraison) sont demandées plus
-          tard, au moment de soumettre votre premier devis.
+          tard, au moment de soumettre votre première soumission.
         </p>
       </main>
 
