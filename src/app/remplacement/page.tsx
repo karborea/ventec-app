@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
-import { createNouvelleCommande } from "@/app/actions/soumissions";
-import { NouvelleCommandeForm } from "./nouvelle-commande-form";
+import { createRemplacement } from "@/app/actions/soumissions";
+import { RemplacementForm } from "./remplacement-form";
 
 export const metadata = {
-  title: "Nouvelle commande · Ventec",
+  title: "Remplacement · Ventec",
 };
 
-export default function NouvelleCommandePage() {
+export default function RemplacementPage() {
   return (
     <>
       <AppHeader />
@@ -18,16 +18,16 @@ export default function NouvelleCommandePage() {
             <Link href="/mes-soumissions" className="hover:underline">
               Mes soumissions
             </Link>{" "}
-            › Nouvelle commande · Polymat G3
+            › Remplacement · Polymat existant
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight">
-            Nouvelle commande
+            Remplacement
           </h1>
         </div>
       </div>
 
       <main className="w-full max-w-6xl mx-auto px-6 py-8 pb-20">
-        <NouvelleCommandeForm action={createNouvelleCommande} />
+        <RemplacementForm action={createRemplacement} />
       </main>
     </>
   );

@@ -170,7 +170,7 @@ export function NouvelleCommandeForm({
     <form action={formAction}>
       <input type="hidden" name="payload" value={payload} />
 
-      <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] gap-6">
+      <div className="grid w-full grid-cols-1 md:grid-cols-[360px_minmax(0,1fr)] gap-6">
         {/* SIDEBAR */}
         <aside className="md:sticky md:top-6 md:self-start">
           {/* Tabs */}
@@ -372,7 +372,7 @@ export function NouvelleCommandeForm({
         </aside>
 
         {/* FORM */}
-        <section>
+        <section className="min-w-0">
           {/* Project */}
           <div className="bg-white border border-[#e3e6ec] rounded-xl p-6 mb-5">
             <h2 className="text-[17px] font-bold mb-1">

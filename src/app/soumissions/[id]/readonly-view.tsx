@@ -8,6 +8,7 @@ type SoumissionRow = {
   type: "nouvelle_commande" | "remplacement";
   status: "brouillon" | "soumis" | "envoye" | "accepte" | "refuse";
   model: "polymat_g3" | "polymat_xl" | null;
+  manufacturier_origine: "ventec" | "autre" | null;
   note_client: string | null;
   created_at: string;
   updated_at: string;
@@ -56,6 +57,32 @@ const TYPE_LABELS: Record<string, string> = {
   remplacement: "Remplacement",
 };
 
+const MFR_LABELS: Record<string, string> = {
+  ventec: "Ventec",
+  autre: "Autre manufacturier",
+};
+
+const SYSTEME_LABELS: Record<string, string> = {
+  simple: "Simple",
+  double: "Double",
+};
+
+const RIDEAU_REPL_LABELS: Record<string, string> = {
+  haut: "Rideau du haut",
+  bas: "Rideau du bas",
+  les_deux: "Les deux",
+};
+
+const MODELE_POLYMAT_LABELS: Record<string, string> = {
+  xl_a: "Polymat XL A",
+  xl_b: "Polymat XL B",
+  xl_c: "Polymat XL C",
+  xl_d: "Polymat XL D",
+  g3_e: "Polymat G3 E",
+  g3_f: "Polymat G3 F",
+  autre: "Autre modèle",
+};
+
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("fr-CA", {
@@ -74,6 +101,8 @@ export function SoumissionReadonly({
   soumission: SoumissionRow;
   ouvertures: OuvertureRow[];
 }) {
+  const isRemplacement = soumission.type === "remplacement";
+
   return (
     <div className="space-y-5">
       {/* Header card */}
@@ -101,6 +130,12 @@ export function SoumissionReadonly({
           />
           {soumission.model && (
             <Field label="Modèle" value={MODEL_LABELS[soumission.model]} />
+          )}
+          {isRemplacement && soumission.manufacturier_origine && (
+            <Field
+              label="Manufacturier d'origine"
+              value={MFR_LABELS[soumission.manufacturier_origine]}
+            />
           )}
           <Field label="Créé le" value={formatDate(soumission.created_at)} />
           {soumission.submitted_at && (
@@ -147,106 +182,187 @@ export function SoumissionReadonly({
               </div>
             </div>
 
-            <dl className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-[14px]">
-              <Field
-                label="Longueur de l'ouverture"
-                value={
-                  op.longueur_po !== null ? `${op.longueur_po} po` : "—"
-                }
-              />
-              <Field
-                label="Longueur totale (+ kit 48 po)"
-                value={
-                  op.longueur_po !== null
-                    ? `${longueurTotale(op.longueur_po)} po`
-                    : "—"
-                }
-              />
-              <Field
-                label="Matériau du haut"
-                value={
-                  op.materiau_haut ? MATERIAU_LABELS[op.materiau_haut] : "—"
-                }
-              />
-              <Field
-                label="Matériau du bas"
-                value={
-                  op.materiau_bas ? MATERIAU_LABELS[op.materiau_bas] : "—"
-                }
-              />
-              <Field
-                label="Type de rideau"
-                value={
-                  op.rideau_type ? RIDEAU_LABELS[op.rideau_type] : "—"
-                }
-              />
-              {op.rideau_type === "double" && (
-                <Field
-                  label="Grandeur du rideau"
-                  value={
-                    op.rideau_grandeur
-                      ? GRANDEUR_LABELS[op.rideau_grandeur]
-                      : "—"
-                  }
-                />
-              )}
-              {op.rideau_type === "double" &&
-                op.rideau_grandeur === "standard" && (
-                  <Field
-                    label="Longueur de l'ouverture totale"
-                    value={
-                      op.longueur_totale_po !== null
-                        ? `${op.longueur_totale_po} po`
-                        : "—"
-                    }
-                  />
-                )}
-              {op.rideau_type === "simple" ? (
-                <Field
-                  label="Hauteur du polymat"
-                  value={
-                    op.polymat_unique_hauteur_po !== null
-                      ? `${op.polymat_unique_hauteur_po} po`
-                      : "—"
-                  }
-                />
-              ) : op.rideau_type === "double" ? (
-                <>
-                  <Field
-                    label="Hauteur polymat du haut"
-                    value={
-                      op.polymat_haut_hauteur_po !== null
-                        ? `${op.polymat_haut_hauteur_po} po`
-                        : "—"
-                    }
-                  />
-                  <Field
-                    label="Hauteur polymat du bas"
-                    value={
-                      op.polymat_bas_hauteur_po !== null
-                        ? `${op.polymat_bas_hauteur_po} po`
-                        : "—"
-                    }
-                  />
-                </>
-              ) : null}
-              <Field
-                label="Nombre de souffleurs"
-                value={
-                  op.souffleurs_count !== null
-                    ? String(op.souffleurs_count)
-                    : "—"
-                }
-              />
-              <Field
-                label="Souffleries aux deux extrémités"
-                value={op.souffleurs_aux_deux_extremites ? "Oui" : "Non"}
-              />
-            </dl>
+            {isRemplacement ? (
+              <RemplacementOuvertureFields op={op} />
+            ) : (
+              <NouvelleOuvertureFields op={op} />
+            )}
           </div>
         ))
       )}
     </div>
+  );
+}
+
+function NouvelleOuvertureFields({ op }: { op: OuvertureRow }) {
+  return (
+    <dl className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-[14px]">
+      <Field
+        label="Longueur de l'ouverture"
+        value={op.longueur_po !== null ? `${op.longueur_po} po` : "—"}
+      />
+      <Field
+        label="Longueur totale (+ kit 48 po)"
+        value={
+          op.longueur_po !== null ? `${longueurTotale(op.longueur_po)} po` : "—"
+        }
+      />
+      <Field
+        label="Matériau du haut"
+        value={op.materiau_haut ? MATERIAU_LABELS[op.materiau_haut] : "—"}
+      />
+      <Field
+        label="Matériau du bas"
+        value={op.materiau_bas ? MATERIAU_LABELS[op.materiau_bas] : "—"}
+      />
+      <Field
+        label="Type de rideau"
+        value={op.rideau_type ? RIDEAU_LABELS[op.rideau_type] : "—"}
+      />
+      {op.rideau_type === "double" && (
+        <Field
+          label="Grandeur du rideau"
+          value={op.rideau_grandeur ? GRANDEUR_LABELS[op.rideau_grandeur] : "—"}
+        />
+      )}
+      {op.rideau_type === "double" && op.rideau_grandeur === "standard" && (
+        <Field
+          label="Longueur de l'ouverture totale"
+          value={
+            op.longueur_totale_po !== null ? `${op.longueur_totale_po} po` : "—"
+          }
+        />
+      )}
+      {op.rideau_type === "simple" ? (
+        <Field
+          label="Hauteur du polymat"
+          value={
+            op.polymat_unique_hauteur_po !== null
+              ? `${op.polymat_unique_hauteur_po} po`
+              : "—"
+          }
+        />
+      ) : op.rideau_type === "double" ? (
+        <>
+          <Field
+            label="Hauteur polymat du haut"
+            value={
+              op.polymat_haut_hauteur_po !== null
+                ? `${op.polymat_haut_hauteur_po} po`
+                : "—"
+            }
+          />
+          <Field
+            label="Hauteur polymat du bas"
+            value={
+              op.polymat_bas_hauteur_po !== null
+                ? `${op.polymat_bas_hauteur_po} po`
+                : "—"
+            }
+          />
+        </>
+      ) : null}
+      <Field
+        label="Nombre de souffleurs"
+        value={op.souffleurs_count !== null ? String(op.souffleurs_count) : "—"}
+      />
+      <Field
+        label="Souffleries aux deux extrémités"
+        value={op.souffleurs_aux_deux_extremites ? "Oui" : "Non"}
+      />
+    </dl>
+  );
+}
+
+function RemplacementOuvertureFields({ op }: { op: OuvertureRow }) {
+  const isDouble = op.systeme === "double";
+  return (
+    <dl className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-[14px]">
+      <Field
+        label="Système existant"
+        value={op.systeme ? SYSTEME_LABELS[op.systeme] : "—"}
+      />
+      {isDouble && (
+        <Field
+          label="Rideau à remplacer"
+          value={
+            op.rideau_a_remplacer
+              ? RIDEAU_REPL_LABELS[op.rideau_a_remplacer]
+              : "—"
+          }
+        />
+      )}
+      <Field
+        label="Modèle Polymat"
+        value={
+          op.modele_polymat ? MODELE_POLYMAT_LABELS[op.modele_polymat] : "—"
+        }
+      />
+      <Field
+        label="Longueur de l'ouverture"
+        value={op.longueur_po !== null ? `${op.longueur_po} po` : "—"}
+      />
+      {!isDouble && (
+        <>
+          <Field
+            label="Hauteur du support"
+            value={
+              op.hauteur_support_simple_po !== null
+                ? `${op.hauteur_support_simple_po} po`
+                : "—"
+            }
+          />
+          <Field
+            label="Nombre de cellules"
+            value={
+              op.nb_cellules_simple !== null
+                ? String(op.nb_cellules_simple)
+                : "—"
+            }
+          />
+        </>
+      )}
+      {isDouble && (
+        <>
+          <Field
+            label="Hauteur support haut"
+            value={
+              op.hauteur_support_haut_po !== null
+                ? `${op.hauteur_support_haut_po} po`
+                : "—"
+            }
+          />
+          <Field
+            label="Hauteur support bas"
+            value={
+              op.hauteur_support_bas_po !== null
+                ? `${op.hauteur_support_bas_po} po`
+                : "—"
+            }
+          />
+          <Field
+            label="Cellules haut"
+            value={
+              op.nb_cellules_haut !== null ? String(op.nb_cellules_haut) : "—"
+            }
+          />
+          <Field
+            label="Cellules bas"
+            value={
+              op.nb_cellules_bas !== null ? String(op.nb_cellules_bas) : "—"
+            }
+          />
+        </>
+      )}
+      <Field
+        label="Nombre de souffleurs"
+        value={op.souffleurs_count !== null ? String(op.souffleurs_count) : "—"}
+      />
+      <Field
+        label="Souffleries aux deux extrémités"
+        value={op.souffleurs_aux_deux_extremites ? "Oui" : "Non"}
+      />
+    </dl>
   );
 }
 

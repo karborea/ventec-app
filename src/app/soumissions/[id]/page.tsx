@@ -2,9 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { createClient } from "@/lib/supabase/server";
-import { updateNouvelleCommande } from "@/app/actions/soumissions";
+import {
+  updateNouvelleCommande,
+  updateRemplacement,
+} from "@/app/actions/soumissions";
 import { NouvelleCommandeForm } from "@/app/nouvelle-commande/nouvelle-commande-form";
 import type { OpeningDraft } from "@/app/nouvelle-commande/nouvelle-commande-form";
+import { RemplacementForm } from "@/app/remplacement/remplacement-form";
+import type { RemplacementOpeningDraft } from "@/app/remplacement/remplacement-form";
 import { SoumissionReadonly } from "./readonly-view";
 
 type SoumissionRow = {
@@ -14,6 +19,7 @@ type SoumissionRow = {
   type: "nouvelle_commande" | "remplacement";
   status: "brouillon" | "soumis" | "envoye" | "accepte" | "refuse";
   model: "polymat_g3" | "polymat_xl" | null;
+  manufacturier_origine: "ventec" | "autre" | null;
   note_client: string | null;
   created_at: string;
   updated_at: string;
@@ -34,9 +40,27 @@ export type OuvertureRow = {
   polymat_bas_hauteur_po: number | null;
   souffleurs_count: number | null;
   souffleurs_aux_deux_extremites: boolean;
+  // Remplacement fields
+  systeme: "simple" | "double" | null;
+  rideau_a_remplacer: "haut" | "bas" | "les_deux" | null;
+  hauteur_support_simple_po: number | null;
+  hauteur_support_haut_po: number | null;
+  hauteur_support_bas_po: number | null;
+  modele_polymat:
+    | "xl_a"
+    | "xl_b"
+    | "xl_c"
+    | "xl_d"
+    | "g3_e"
+    | "g3_f"
+    | "autre"
+    | null;
+  nb_cellules_simple: number | null;
+  nb_cellules_haut: number | null;
+  nb_cellules_bas: number | null;
 };
 
-function toDraft(op: OuvertureRow): OpeningDraft {
+function toNouvelleDraft(op: OuvertureRow): OpeningDraft {
   return {
     longueur_po: op.longueur_po !== null ? String(op.longueur_po) : "",
     longueur_totale_po:
@@ -64,6 +88,38 @@ function toDraft(op: OuvertureRow): OpeningDraft {
   };
 }
 
+function toRemplacementDraft(op: OuvertureRow): RemplacementOpeningDraft {
+  return {
+    systeme: (op.systeme ?? "simple") as RemplacementOpeningDraft["systeme"],
+    rideau_a_remplacer: (op.rideau_a_remplacer ??
+      "") as RemplacementOpeningDraft["rideau_a_remplacer"],
+    hauteur_support_simple_po:
+      op.hauteur_support_simple_po !== null
+        ? String(op.hauteur_support_simple_po)
+        : "",
+    hauteur_support_haut_po:
+      op.hauteur_support_haut_po !== null
+        ? String(op.hauteur_support_haut_po)
+        : "",
+    hauteur_support_bas_po:
+      op.hauteur_support_bas_po !== null
+        ? String(op.hauteur_support_bas_po)
+        : "",
+    modele_polymat: (op.modele_polymat ??
+      "") as RemplacementOpeningDraft["modele_polymat"],
+    longueur_po: op.longueur_po !== null ? String(op.longueur_po) : "",
+    nb_cellules_simple:
+      op.nb_cellules_simple !== null ? String(op.nb_cellules_simple) : "",
+    nb_cellules_haut:
+      op.nb_cellules_haut !== null ? String(op.nb_cellules_haut) : "",
+    nb_cellules_bas:
+      op.nb_cellules_bas !== null ? String(op.nb_cellules_bas) : "",
+    souffleurs_count:
+      op.souffleurs_count !== null ? String(op.souffleurs_count) : "",
+    souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites === true,
+  };
+}
+
 export default async function SoumissionDetailPage({
   params,
 }: {
@@ -75,7 +131,7 @@ export default async function SoumissionDetailPage({
   const { data: soumission } = await supabase
     .from("soumissions")
     .select(
-      "id, soumission_number, project_name, type, status, model, note_client, created_at, updated_at, submitted_at",
+      "id, soumission_number, project_name, type, status, model, manufacturier_origine, note_client, created_at, updated_at, submitted_at",
     )
     .eq("id", id)
     .maybeSingle<SoumissionRow>();
@@ -87,15 +143,14 @@ export default async function SoumissionDetailPage({
   const { data: ouverturesData } = await supabase
     .from("ouvertures")
     .select(
-      "id, order_index, longueur_po, longueur_totale_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_aux_deux_extremites",
+      "id, order_index, longueur_po, longueur_totale_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_aux_deux_extremites, systeme, rideau_a_remplacer, hauteur_support_simple_po, hauteur_support_haut_po, hauteur_support_bas_po, modele_polymat, nb_cellules_simple, nb_cellules_haut, nb_cellules_bas",
     )
     .eq("soumission_id", id)
     .order("order_index");
 
   const ouvertures = (ouverturesData ?? []) as OuvertureRow[];
 
-  const isDraftEditable =
-    soumission.status === "brouillon" && soumission.type === "nouvelle_commande";
+  const isDraftEditable = soumission.status === "brouillon";
 
   return (
     <>
@@ -120,12 +175,20 @@ export default async function SoumissionDetailPage({
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-6 py-8 pb-20">
-        {isDraftEditable ? (
+      <main className="w-full max-w-6xl mx-auto px-6 py-8 pb-20">
+        {isDraftEditable && soumission.type === "nouvelle_commande" ? (
           <NouvelleCommandeForm
             action={updateNouvelleCommande.bind(null, soumission.id)}
             initialProjectName={soumission.project_name}
-            initialOpenings={ouvertures.map(toDraft)}
+            initialOpenings={ouvertures.map(toNouvelleDraft)}
+            cancelHref="/mes-soumissions"
+          />
+        ) : isDraftEditable && soumission.type === "remplacement" ? (
+          <RemplacementForm
+            action={updateRemplacement.bind(null, soumission.id)}
+            initialProjectName={soumission.project_name}
+            initialManufacturier={soumission.manufacturier_origine ?? "ventec"}
+            initialOpenings={ouvertures.map(toRemplacementDraft)}
             cancelHref="/mes-soumissions"
           />
         ) : (
