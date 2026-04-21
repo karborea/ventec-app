@@ -5,9 +5,21 @@ import {
   createNouvelleCommande,
   type SoumissionFormState,
 } from "@/app/actions/soumissions";
+import {
+  KIT_EXTREMITE_PO,
+  longueurTotale,
+  recommendSouffleurs,
+  validateHauteurForRideau,
+} from "@/lib/soumissions/rules";
 
 type Materiau = "bois" | "acier" | "beton";
 type RideauType = "simple" | "double";
+
+function parseNum(s: string): number | null {
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 type OpeningDraft = {
   longueur_po: string;
@@ -61,6 +73,26 @@ export function NouvelleCommandeForm() {
   const [activeIndex, setActiveIndex] = useState(0);
 
   const active = openings[activeIndex];
+
+  // Derived values for the active opening
+  const longueurPo = parseNum(active.longueur_po);
+  const hauteurPo =
+    active.rideau_type === "simple"
+      ? parseNum(active.polymat_unique_hauteur_po)
+      : (parseNum(active.polymat_haut_hauteur_po) ?? 0) +
+        (parseNum(active.polymat_bas_hauteur_po) ?? 0) || null;
+  const recommendedSouffleurs = longueurPo
+    ? recommendSouffleurs(longueurPo)
+    : null;
+  const souffleursUser = parseNum(active.souffleurs_count);
+  const souffleursMismatch =
+    recommendedSouffleurs !== null &&
+    souffleursUser !== null &&
+    souffleursUser !== recommendedSouffleurs;
+  const hauteurValidation =
+    hauteurPo !== null
+      ? validateHauteurForRideau(active.rideau_type, hauteurPo)
+      : { ok: true as const };
 
   function updateActive(patch: Partial<OpeningDraft>) {
     setOpenings((prev) =>
@@ -296,15 +328,24 @@ export function NouvelleCommandeForm() {
           </div>
 
           {/* Active opening block */}
-          <div className="bg-white border border-[#e3e6ec] rounded-xl p-6 space-y-8">
-            <div className="flex items-center gap-2 -mb-2">
-              <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded uppercase tracking-[0.5px]">
-                Ouverture {activeIndex + 1}
-              </span>
-              <span className="text-sm text-[#5a6278]">
-                sur {openings.length}
+          <div className="bg-white border border-[#e3e6ec] rounded-xl overflow-hidden">
+            <div className="px-6 py-4 bg-[#fafbfc] border-b border-[#e3e6ec] flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded uppercase tracking-[0.5px]">
+                  Ouverture {activeIndex + 1}
+                </span>
+                {openings.length > 1 && (
+                  <span className="text-sm text-[#5a6278]">
+                    de {openings.length}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-[#5a6278]">
+                Les champs ci-dessous s&apos;appliquent à cette ouverture
+                seulement.
               </span>
             </div>
+            <div className="p-6 space-y-8">
 
             {/* Longueur */}
             <section>
@@ -312,23 +353,37 @@ export function NouvelleCommandeForm() {
                 2. Longueur de l&apos;ouverture
               </h3>
               <p className="text-sm text-[#5a6278] mb-3">
-                Largeur en pouces. Le kit d&apos;extrémité (+48 po) sera ajouté
+                Largeur en pouces. Le kit d&apos;extrémité est ajouté
                 automatiquement.
               </p>
-              <div className="max-w-[260px] relative">
-                <input
-                  type="number"
-                  min={0}
-                  value={active.longueur_po}
-                  onChange={(e) =>
-                    updateActive({ longueur_po: e.target.value })
-                  }
-                  placeholder="1206"
-                  className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
-                  po
-                </span>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="max-w-[220px] relative flex-1">
+                  <input
+                    type="number"
+                    min={0}
+                    value={active.longueur_po}
+                    onChange={(e) =>
+                      updateActive({ longueur_po: e.target.value })
+                    }
+                    placeholder="1206"
+                    className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                    po
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[13px] text-[#5a6278]">
+                  <span>+</span>
+                  <span className="bg-[#eef1f5] px-2.5 py-1.5 rounded-md font-mono">
+                    {KIT_EXTREMITE_PO} po
+                  </span>
+                  <span>kit d&apos;extrémité =</span>
+                  <span className="bg-[#f0f7fb] px-2.5 py-1.5 rounded-md font-mono font-semibold text-[#0f7bb5]">
+                    {longueurPo !== null
+                      ? `${longueurTotale(longueurPo)} po total`
+                      : "— po total"}
+                  </span>
+                </div>
               </div>
             </section>
 
@@ -449,22 +504,46 @@ export function NouvelleCommandeForm() {
               </p>
 
               {active.rideau_type === "simple" ? (
-                <div className="max-w-[260px] relative">
-                  <input
-                    type="number"
-                    min={0}
-                    value={active.polymat_unique_hauteur_po}
-                    onChange={(e) =>
-                      updateActive({
-                        polymat_unique_hauteur_po: e.target.value,
-                      })
-                    }
-                    placeholder="116"
-                    className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
-                    po
-                  </span>
+                <div>
+                  <div className="max-w-[260px] relative">
+                    <input
+                      type="number"
+                      min={0}
+                      value={active.polymat_unique_hauteur_po}
+                      onChange={(e) =>
+                        updateActive({
+                          polymat_unique_hauteur_po: e.target.value,
+                        })
+                      }
+                      placeholder="116"
+                      className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                      po
+                    </span>
+                  </div>
+                  {!hauteurValidation.ok && (
+                    <div className="mt-3 rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
+                      <span aria-hidden>⚠</span>
+                      <div className="flex-1">
+                        <p>{hauteurValidation.message}</p>
+                        {hauteurValidation.suggestion && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateActive({
+                                rideau_type: hauteurValidation.suggestion!,
+                              })
+                            }
+                            className="mt-2 text-xs font-bold underline hover:no-underline"
+                          >
+                            Basculer vers rideau{" "}
+                            {hauteurValidation.suggestion}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -517,6 +596,38 @@ export function NouvelleCommandeForm() {
                       </span>
                     </div>
                   </div>
+
+                  {hauteurPo !== null && (
+                    <div className="text-xs text-[#5a6278] px-1">
+                      Hauteur totale des deux polymats :{" "}
+                      <span className="font-mono font-semibold text-[#1a1f2e]">
+                        {hauteurPo} po
+                      </span>
+                    </div>
+                  )}
+
+                  {!hauteurValidation.ok && (
+                    <div className="rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
+                      <span aria-hidden>⚠</span>
+                      <div className="flex-1">
+                        <p>{hauteurValidation.message}</p>
+                        {hauteurValidation.suggestion && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateActive({
+                                rideau_type: hauteurValidation.suggestion!,
+                              })
+                            }
+                            className="mt-2 text-xs font-bold underline hover:no-underline"
+                          >
+                            Basculer vers rideau{" "}
+                            {hauteurValidation.suggestion}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -525,21 +636,68 @@ export function NouvelleCommandeForm() {
             <section>
               <h3 className="text-[15px] font-bold mb-1">6. Souffleurs</h3>
               <p className="text-sm text-[#5a6278] mb-3">
-                Nombre de souffleurs à installer (sera validé par Ventec).
+                Calculé automatiquement selon la longueur de l&apos;ouverture.
+                Modifiez si votre installation l&apos;exige.
               </p>
-              <div className="max-w-[180px]">
-                <input
-                  type="number"
-                  min={1}
-                  value={active.souffleurs_count}
-                  onChange={(e) =>
-                    updateActive({ souffleurs_count: e.target.value })
-                  }
-                  placeholder="3"
-                  className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                />
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="max-w-[180px]">
+                  <input
+                    type="number"
+                    min={1}
+                    value={active.souffleurs_count}
+                    onChange={(e) =>
+                      updateActive({ souffleurs_count: e.target.value })
+                    }
+                    placeholder={
+                      recommendedSouffleurs
+                        ? String(recommendedSouffleurs)
+                        : "3"
+                    }
+                    className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                  />
+                </div>
+                {recommendedSouffleurs !== null && (
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <span className="text-[#5a6278]">Recommandé :</span>
+                    <span className="bg-[#f0f7fb] text-[#0f7bb5] px-2.5 py-1.5 rounded-md font-mono font-semibold">
+                      {recommendedSouffleurs} souffleur
+                      {recommendedSouffleurs > 1 ? "s" : ""}
+                    </span>
+                    {souffleursUser !== recommendedSouffleurs && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateActive({
+                            souffleurs_count: String(recommendedSouffleurs),
+                          })
+                        }
+                        className="text-xs font-bold text-[#0f7bb5] underline hover:no-underline"
+                      >
+                        Appliquer
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {souffleursMismatch && (
+                <div className="mt-3 rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
+                  <span aria-hidden>⚠</span>
+                  <div>
+                    Vous avez indiqué{" "}
+                    <strong>
+                      {souffleursUser} souffleur{souffleursUser! > 1 ? "s" : ""}
+                    </strong>
+                    , mais la table Ventec recommande{" "}
+                    <strong>{recommendedSouffleurs}</strong> pour cette
+                    longueur. Votre soumission sera révisée par Ventec avant
+                    l&apos;envoi du devis.
+                  </div>
+                </div>
+              )}
             </section>
+            </div>
           </div>
 
           {state?.error && (
