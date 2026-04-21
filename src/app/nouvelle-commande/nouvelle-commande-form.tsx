@@ -23,6 +23,15 @@ function parseNum(s: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function formatFeetInches(po: number): string {
+  if (!Number.isFinite(po) || po <= 0) return "";
+  const ft = Math.floor(po / 12);
+  const inches = po % 12;
+  if (ft === 0) return `${inches} po`;
+  if (inches === 0) return `${ft} pi`;
+  return `${ft} pi ${inches} po`;
+}
+
 export type OpeningDraft = {
   longueur_po: string;
   longueur_totale_po: string;
@@ -445,6 +454,18 @@ export function NouvelleCommandeForm({
                   </span>
                 </div>
               </div>
+              {longueurPo !== null && (
+                <p className="mt-2 text-xs text-[#5a6278]">
+                  Soit{" "}
+                  <span className="font-semibold text-[#1a1f2e]">
+                    {formatFeetInches(longueurPo)}
+                  </span>{" "}
+                  (ouverture) · Longueur totale{" "}
+                  <span className="font-semibold text-[#1a1f2e]">
+                    {formatFeetInches(longueurTotale(longueurPo))}
+                  </span>
+                </p>
+              )}
             </section>
 
             {/* Matériaux */}
