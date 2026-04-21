@@ -25,10 +25,8 @@ export default function NouvelleCommandePage() {
         </div>
       </div>
 
-      <main className="max-w-4xl mx-auto px-6 py-8 pb-20">
-        <div className="bg-white rounded-xl border border-[#e3e6ec] p-8">
-          <NouvelleCommandeForm />
-        </div>
+      <main className="max-w-6xl mx-auto px-6 py-8 pb-20">
+        <NouvelleCommandeForm />
       </main>
     </>
   );
