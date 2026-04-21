@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  /* Brand */
+  --color-orange: #f37021;
+  --color-orange-hover: #d85f16;
+  --color-blue: #1b9ae0;
+  --color-blue-dark: #0f7bb5;
+
+  /* Ink */
+  --color-ink: #1a1f2e;
+  --color-ink-soft: #5a6278;
+  --color-line: #e3e6ec;
+  --color-bg: #f7f8fa;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --color-brand-orange: var(--color-orange);
+  --color-brand-orange-hover: var(--color-orange-hover);
+  --color-brand-blue: var(--color-blue);
+  --color-brand-blue-dark: var(--color-blue-dark);
+  --color-ink: var(--color-ink);
+  --color-ink-soft: var(--color-ink-soft);
+  --color-line: var(--color-line);
+}
+
+body {
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
