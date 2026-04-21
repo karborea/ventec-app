@@ -9,6 +9,7 @@ import {
   validateHauteurForRideau,
 } from "@/lib/soumissions/rules";
 import { OpeningSchema } from "./opening-schema";
+import { MeasurementGuideButton } from "./measurement-guide-button";
 
 type Materiau = "bois" | "acier" | "beton";
 type RideauType = "simple" | "double";
@@ -388,17 +389,15 @@ export function NouvelleCommandeForm({
                   </span>
                 )}
               </div>
-              <span className="text-xs text-[#5a6278]">
-                Les champs ci-dessous s&apos;appliquent à cette ouverture
-                seulement.
-              </span>
+              <MeasurementGuideButton label="Guide de mesures" />
             </div>
             <div className="p-6 space-y-8">
 
             {/* Longueur */}
             <section>
-              <h3 className="text-[15px] font-bold mb-1">
+              <h3 className="text-[15px] font-bold mb-1 flex items-center gap-2">
                 2. Longueur de l&apos;ouverture
+                <MeasurementGuideButton compact />
               </h3>
               <p className="text-sm text-[#5a6278] mb-3">
                 Largeur en pouces. Le kit d&apos;extrémité est ajouté
@@ -589,9 +588,10 @@ export function NouvelleCommandeForm({
 
             {/* Hauteurs */}
             <section>
-              <h3 className="text-[15px] font-bold mb-1">
+              <h3 className="text-[15px] font-bold mb-1 flex items-center gap-2">
                 5. Hauteur{active.rideau_type === "double" ? "s" : ""} des
                 polymats
+                <MeasurementGuideButton compact />
               </h3>
               <p className="text-sm text-[#5a6278] mb-3">
                 {active.rideau_type === "simple"
