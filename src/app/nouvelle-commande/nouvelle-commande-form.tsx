@@ -12,6 +12,7 @@ import { OpeningSchema } from "./opening-schema";
 
 type Materiau = "bois" | "acier" | "beton";
 type RideauType = "simple" | "double";
+type RideauGrandeur = "standard" | "hors_standard";
 
 function parseNum(s: string): number | null {
   if (!s) return null;
@@ -24,6 +25,7 @@ export type OpeningDraft = {
   materiau_haut: Materiau;
   materiau_bas: Materiau;
   rideau_type: RideauType;
+  rideau_grandeur: RideauGrandeur | "";
   polymat_unique_hauteur_po: string;
   polymat_haut_hauteur_po: string;
   polymat_bas_hauteur_po: string;
@@ -60,6 +62,7 @@ function emptyOpening(): OpeningDraft {
     materiau_haut: "bois",
     materiau_bas: "acier",
     rideau_type: "simple",
+    rideau_grandeur: "",
     polymat_unique_hauteur_po: "",
     polymat_haut_hauteur_po: "",
     polymat_bas_hauteur_po: "",
@@ -282,6 +285,18 @@ export function NouvelleCommandeForm({
                         {op.rideau_type}
                       </dd>
                     </div>
+                    {op.rideau_type === "double" && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-[#5a6278]">Grandeur</dt>
+                        <dd className="font-semibold">
+                          {op.rideau_grandeur === "standard"
+                            ? "Standard"
+                            : op.rideau_grandeur === "hors_standard"
+                              ? "Hors-standard"
+                              : "—"}
+                        </dd>
+                      </div>
+                    )}
                     {op.rideau_type === "simple" ? (
                       <div className="flex justify-between gap-3">
                         <dt className="text-[#5a6278]">Hauteur</dt>
@@ -515,6 +530,54 @@ export function NouvelleCommandeForm({
                   </div>
                 </button>
               </div>
+
+              {/* Sub-option : grandeur (only for double) */}
+              {active.rideau_type === "double" && (
+                <div className="mt-4 pt-4 border-t border-dashed border-[#e3e6ec]">
+                  <label className="block text-sm font-semibold mb-1">
+                    Grandeur du rideau double{" "}
+                    <span className="text-[#f37021]">*</span>
+                  </label>
+                  <p className="text-xs text-[#5a6278] mb-2.5">
+                    Un rideau standard suit nos dimensions pré-configurées. Un
+                    rideau hors-standard sera vérifié et ajusté par Ventec.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateActive({ rideau_grandeur: "standard" })
+                      }
+                      className={`border-[1.5px] rounded-lg p-3 text-left transition-all ${
+                        active.rideau_grandeur === "standard"
+                          ? "border-[#1b9ae0] bg-[#1b9ae0]/[0.06] ring-1 ring-inset ring-[#1b9ae0]"
+                          : "border-[#e3e6ec] bg-white hover:border-[#1b9ae0]"
+                      }`}
+                    >
+                      <div className="font-bold text-[14px]">Standard</div>
+                      <div className="text-xs text-[#5a6278] mt-0.5">
+                        Dimensions pré-configurées Ventec
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateActive({ rideau_grandeur: "hors_standard" })
+                      }
+                      className={`border-[1.5px] rounded-lg p-3 text-left transition-all ${
+                        active.rideau_grandeur === "hors_standard"
+                          ? "border-[#1b9ae0] bg-[#1b9ae0]/[0.06] ring-1 ring-inset ring-[#1b9ae0]"
+                          : "border-[#e3e6ec] bg-white hover:border-[#1b9ae0]"
+                      }`}
+                    >
+                      <div className="font-bold text-[14px]">Hors-standard</div>
+                      <div className="text-xs text-[#5a6278] mt-0.5">
+                        Dimensions personnalisées
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Hauteurs */}

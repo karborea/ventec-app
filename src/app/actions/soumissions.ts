@@ -10,15 +10,18 @@ export type SoumissionFormState = {
 
 const MATERIAUX = new Set(["bois", "acier", "beton"] as const);
 const RIDEAU_TYPES = new Set(["simple", "double"] as const);
+const RIDEAU_GRANDEURS = new Set(["standard", "hors_standard"] as const);
 
 type Materiau = "bois" | "acier" | "beton";
 type RideauType = "simple" | "double";
+type RideauGrandeur = "standard" | "hors_standard";
 
 type OpeningPayload = {
   longueur_po?: number | null;
   materiau_haut?: Materiau | null;
   materiau_bas?: Materiau | null;
   rideau_type?: RideauType | null;
+  rideau_grandeur?: RideauGrandeur | null;
   polymat_unique_hauteur_po?: number | null;
   polymat_haut_hauteur_po?: number | null;
   polymat_bas_hauteur_po?: number | null;
@@ -68,11 +71,18 @@ function parsePayload(raw: unknown): FormPayload | null {
       RIDEAU_TYPES.has(op.rideau_type as RideauType)
         ? (op.rideau_type as RideauType)
         : null;
+    const rg =
+      typeof op.rideau_grandeur === "string" &&
+      RIDEAU_GRANDEURS.has(op.rideau_grandeur as RideauGrandeur)
+        ? (op.rideau_grandeur as RideauGrandeur)
+        : null;
     return {
       longueur_po: toInt(op.longueur_po),
       materiau_haut: mh,
       materiau_bas: mb,
       rideau_type: rt,
+      // Only keep rideau_grandeur when double (safety against stale state)
+      rideau_grandeur: rt === "double" ? rg : null,
       polymat_unique_hauteur_po: toInt(op.polymat_unique_hauteur_po),
       polymat_haut_hauteur_po: toInt(op.polymat_haut_hauteur_po),
       polymat_bas_hauteur_po: toInt(op.polymat_bas_hauteur_po),
@@ -112,6 +122,12 @@ function validateForSubmission(
         return {
           ok: false,
           error: `Ouverture ${n} : les hauteurs du haut et du bas sont requises.`,
+        };
+      }
+      if (!op.rideau_grandeur) {
+        return {
+          ok: false,
+          error: `Ouverture ${n} : sélectionnez la grandeur du rideau double (standard ou hors-standard).`,
         };
       }
     }
@@ -173,6 +189,7 @@ export async function createNouvelleCommande(
     materiau_haut: op.materiau_haut ?? null,
     materiau_bas: op.materiau_bas ?? null,
     rideau_type: op.rideau_type ?? null,
+    rideau_grandeur: op.rideau_grandeur ?? null,
     polymat_unique_hauteur_po: op.polymat_unique_hauteur_po ?? null,
     polymat_haut_hauteur_po: op.polymat_haut_hauteur_po ?? null,
     polymat_bas_hauteur_po: op.polymat_bas_hauteur_po ?? null,
@@ -277,6 +294,7 @@ export async function updateNouvelleCommande(
     materiau_haut: op.materiau_haut ?? null,
     materiau_bas: op.materiau_bas ?? null,
     rideau_type: op.rideau_type ?? null,
+    rideau_grandeur: op.rideau_grandeur ?? null,
     polymat_unique_hauteur_po: op.polymat_unique_hauteur_po ?? null,
     polymat_haut_hauteur_po: op.polymat_haut_hauteur_po ?? null,
     polymat_bas_hauteur_po: op.polymat_bas_hauteur_po ?? null,

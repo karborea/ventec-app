@@ -41,6 +41,11 @@ const RIDEAU_LABELS: Record<string, string> = {
   double: "Double",
 };
 
+const GRANDEUR_LABELS: Record<string, string> = {
+  standard: "Standard",
+  hors_standard: "Hors-standard",
+};
+
 const MODEL_LABELS: Record<string, string> = {
   polymat_g3: "Polymat G3",
   polymat_xl: "Polymat XL",
@@ -175,6 +180,16 @@ export function SoumissionReadonly({
                   op.rideau_type ? RIDEAU_LABELS[op.rideau_type] : "—"
                 }
               />
+              {op.rideau_type === "double" && (
+                <Field
+                  label="Grandeur du rideau"
+                  value={
+                    op.rideau_grandeur
+                      ? GRANDEUR_LABELS[op.rideau_grandeur]
+                      : "—"
+                  }
+                />
+              )}
               {op.rideau_type === "simple" ? (
                 <Field
                   label="Hauteur du polymat"
