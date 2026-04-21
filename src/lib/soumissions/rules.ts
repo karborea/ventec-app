@@ -17,37 +17,38 @@ export const RIDEAU_DOUBLE_MAX_PO = 168; // 14 ft
 
 /**
  * Official Ventec blower-count table.
- * Ranges are in FEET (from the Ventec blowers table). The first option
- * in each row is the "standard" recommendation; additional options are
- * alternatives offered to the client.
+ * Source ranges were in feet; converted to inches (× 12) here so all
+ * calculations stay in the same unit as the form.
  *
- * Note : the table has a gap at 125 ft (intentional, from the source).
+ * Note : the source table has a gap at 125 ft (= 1500 po), intentional
+ * and preserved as-is.
  */
 type SouffleursRange = {
-  minFt: number;
-  maxFt: number;
+  minPo: number;
+  maxPo: number;
   /** First value is the standard / recommended choice. */
   options: readonly number[];
 };
 
 const SOUFFLEURS_TABLE: readonly SouffleursRange[] = [
-  { minFt: 32, maxFt: 64, options: [2] },
-  { minFt: 65, maxFt: 124, options: [3] },
-  { minFt: 126, maxFt: 135, options: [3, 6] },
-  { minFt: 136, maxFt: 146, options: [3, 4, 6] },
-  { minFt: 147, maxFt: 185, options: [4, 6] },
+  { minPo: 32 * 12, maxPo: 64 * 12, options: [2] }, //   384 – 768 po
+  { minPo: 65 * 12, maxPo: 124 * 12, options: [3] }, //  780 – 1488 po
+  { minPo: 126 * 12, maxPo: 135 * 12, options: [3, 6] }, // 1512 – 1620 po
+  { minPo: 136 * 12, maxPo: 146 * 12, options: [3, 4, 6] }, // 1632 – 1752 po
+  { minPo: 147 * 12, maxPo: 185 * 12, options: [4, 6] }, // 1764 – 2220 po
 ] as const;
 
-export const SOUFFLEURS_TABLE_MIN_PO = 32 * 12;
-export const SOUFFLEURS_TABLE_MAX_PO = 185 * 12;
+export const SOUFFLEURS_TABLE_MIN_PO = SOUFFLEURS_TABLE[0].minPo;
+export const SOUFFLEURS_TABLE_MAX_PO =
+  SOUFFLEURS_TABLE[SOUFFLEURS_TABLE.length - 1].maxPo;
 
 export type SouffleursChoice = {
   /** All allowed counts for this length, in order (first = standard). */
   options: number[];
   /** The standard / recommended count for this length. */
   recommended: number;
-  /** Human-readable feet range (e.g. "65 à 124 pi"). */
-  feetRangeLabel: string;
+  /** Human-readable inches range (e.g. "780 à 1488 po"). */
+  rangeLabel: string;
 };
 
 /**
@@ -58,13 +59,12 @@ export function getSouffleursChoice(
   longueurPo: number,
 ): SouffleursChoice | null {
   if (!Number.isFinite(longueurPo) || longueurPo <= 0) return null;
-  const feet = longueurPo / 12;
   for (const row of SOUFFLEURS_TABLE) {
-    if (feet >= row.minFt && feet <= row.maxFt) {
+    if (longueurPo >= row.minPo && longueurPo <= row.maxPo) {
       return {
         options: [...row.options],
         recommended: row.options[0],
-        feetRangeLabel: `${row.minFt} à ${row.maxFt} pi`,
+        rangeLabel: `${row.minPo} à ${row.maxPo} po`,
       };
     }
   }

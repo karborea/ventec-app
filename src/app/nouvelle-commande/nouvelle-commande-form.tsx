@@ -784,8 +784,7 @@ export function NouvelleCommandeForm({
               <h3 className="text-[15px] font-bold mb-1">6. Souffleurs</h3>
               <p className="text-sm text-[#5a6278] mb-3">
                 Les choix disponibles dépendent de la longueur de
-                l&apos;ouverture (étape 2). Le premier choix de la liste
-                correspond au standard Ventec.
+                l&apos;ouverture (étape 2).
               </p>
 
               {longueurPo === null ? (
@@ -797,9 +796,9 @@ export function NouvelleCommandeForm({
                 <div className="rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
                   <span aria-hidden>⚠</span>
                   <div>
-                    Longueur hors des plages standards (32–185 pi).
-                    Ventec vous contactera pour préciser le nombre de
-                    souffleurs après soumission.
+                    Longueur hors des plages standards ({SOUFFLEURS_TABLE_MIN_PO}
+                    –{SOUFFLEURS_TABLE_MAX_PO} po). Ventec vous contactera pour
+                    préciser le nombre de souffleurs après soumission.
                   </div>
                 </div>
               ) : souffleursChoice ? (
@@ -813,16 +812,15 @@ export function NouvelleCommandeForm({
                       className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
                     >
                       <option value="">— Sélectionner —</option>
-                      {souffleursChoice.options.map((n, i) => (
+                      {souffleursChoice.options.map((n) => (
                         <option key={n} value={String(n)}>
                           {n} souffleur{n > 1 ? "s" : ""}
-                          {i === 0 ? " (standard)" : ""}
                         </option>
                       ))}
                     </select>
                   </div>
                   <div className="bg-[#f0f7fb] text-[#0f7bb5] px-2.5 py-1.5 rounded-md text-xs font-semibold">
-                    Plage {souffleursChoice.feetRangeLabel}
+                    Plage {souffleursChoice.rangeLabel}
                   </div>
                 </div>
               ) : (
