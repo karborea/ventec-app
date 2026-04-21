@@ -5,7 +5,9 @@ import type { SoumissionFormState } from "@/app/actions/soumissions";
 import {
   KIT_EXTREMITE_PO,
   longueurTotale,
-  recommendSouffleurs,
+  getSouffleursChoice,
+  SOUFFLEURS_TABLE_MIN_PO,
+  SOUFFLEURS_TABLE_MAX_PO,
   validateHauteurForRideau,
 } from "@/lib/soumissions/rules";
 import { OpeningSchema } from "./opening-schema";
@@ -108,14 +110,12 @@ export function NouvelleCommandeForm({
       ? parseNum(active.polymat_unique_hauteur_po)
       : (parseNum(active.polymat_haut_hauteur_po) ?? 0) +
         (parseNum(active.polymat_bas_hauteur_po) ?? 0) || null;
-  const recommendedSouffleurs = longueurPo
-    ? recommendSouffleurs(longueurPo)
-    : null;
-  const souffleursUser = parseNum(active.souffleurs_count);
-  const souffleursMismatch =
-    recommendedSouffleurs !== null &&
-    souffleursUser !== null &&
-    souffleursUser !== recommendedSouffleurs;
+  const souffleursChoice = longueurPo ? getSouffleursChoice(longueurPo) : null;
+  const souffleursOutOfRange =
+    longueurPo !== null &&
+    souffleursChoice === null &&
+    (longueurPo < SOUFFLEURS_TABLE_MIN_PO ||
+      longueurPo > SOUFFLEURS_TABLE_MAX_PO);
   const hauteurValidation =
     hauteurPo !== null
       ? validateHauteurForRideau(active.rideau_type, hauteurPo)
@@ -783,63 +783,55 @@ export function NouvelleCommandeForm({
             <section>
               <h3 className="text-[15px] font-bold mb-1">6. Souffleurs</h3>
               <p className="text-sm text-[#5a6278] mb-3">
-                Calculé automatiquement selon la longueur de l&apos;ouverture.
-                Modifiez si votre installation l&apos;exige.
+                Les choix disponibles dépendent de la longueur de
+                l&apos;ouverture (étape 2). Le premier choix de la liste
+                correspond au standard Ventec.
               </p>
 
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="max-w-[180px]">
-                  <input
-                    type="number"
-                    min={1}
-                    value={active.souffleurs_count}
-                    onChange={(e) =>
-                      updateActive({ souffleurs_count: e.target.value })
-                    }
-                    placeholder={
-                      recommendedSouffleurs
-                        ? String(recommendedSouffleurs)
-                        : "3"
-                    }
-                    className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                  />
+              {longueurPo === null ? (
+                <div className="rounded-lg border border-dashed border-[#c9d1dc] bg-[#fafbfc] px-4 py-3 text-[13px] text-[#5a6278]">
+                  Entrez d&apos;abord la longueur de l&apos;ouverture à
+                  l&apos;étape 2 pour voir les options disponibles.
                 </div>
-                {recommendedSouffleurs !== null && (
-                  <div className="flex items-center gap-2 text-[13px]">
-                    <span className="text-[#5a6278]">Recommandé :</span>
-                    <span className="bg-[#f0f7fb] text-[#0f7bb5] px-2.5 py-1.5 rounded-md font-mono font-semibold">
-                      {recommendedSouffleurs} souffleur
-                      {recommendedSouffleurs > 1 ? "s" : ""}
-                    </span>
-                    {souffleursUser !== recommendedSouffleurs && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateActive({
-                            souffleurs_count: String(recommendedSouffleurs),
-                          })
-                        }
-                        className="text-xs font-bold text-[#0f7bb5] underline hover:no-underline"
-                      >
-                        Appliquer
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {souffleursMismatch && (
-                <div className="mt-3 rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
+              ) : souffleursOutOfRange ? (
+                <div className="rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
                   <span aria-hidden>⚠</span>
                   <div>
-                    Vous avez indiqué{" "}
-                    <strong>
-                      {souffleursUser} souffleur{souffleursUser! > 1 ? "s" : ""}
-                    </strong>
-                    , mais la table Ventec recommande{" "}
-                    <strong>{recommendedSouffleurs}</strong> pour cette
-                    longueur. Votre soumission sera révisée par Ventec avant
-                    l&apos;envoi du devis.
+                    Longueur hors des plages standards (32–185 pi).
+                    Ventec vous contactera pour préciser le nombre de
+                    souffleurs après soumission.
+                  </div>
+                </div>
+              ) : souffleursChoice ? (
+                <div className="flex items-start gap-3 flex-wrap">
+                  <div className="max-w-[240px]">
+                    <select
+                      value={active.souffleurs_count}
+                      onChange={(e) =>
+                        updateActive({ souffleurs_count: e.target.value })
+                      }
+                      className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                    >
+                      <option value="">— Sélectionner —</option>
+                      {souffleursChoice.options.map((n, i) => (
+                        <option key={n} value={String(n)}>
+                          {n} souffleur{n > 1 ? "s" : ""}
+                          {i === 0 ? " (standard)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="bg-[#f0f7fb] text-[#0f7bb5] px-2.5 py-1.5 rounded-md text-xs font-semibold">
+                    Plage {souffleursChoice.feetRangeLabel}
+                  </div>
+                </div>
+              ) : (
+                // Longueur in the 125 ft gap between table rows
+                <div className="rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
+                  <span aria-hidden>⚠</span>
+                  <div>
+                    Longueur non couverte par la table standard. Ventec
+                    vous contactera pour préciser.
                   </div>
                 </div>
               )}

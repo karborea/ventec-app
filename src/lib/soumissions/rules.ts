@@ -16,15 +16,67 @@ export const RIDEAU_DOUBLE_MIN_PO = 96; //  8 ft
 export const RIDEAU_DOUBLE_MAX_PO = 168; // 14 ft
 
 /**
- * Recommend number of souffleurs (blowers) based on opening length in inches.
- * Conservative default; will be replaced by the validated table.
+ * Official Ventec blower-count table.
+ * Ranges are in FEET (from the Ventec blowers table). The first option
+ * in each row is the "standard" recommendation; additional options are
+ * alternatives offered to the client.
+ *
+ * Note : the table has a gap at 125 ft (intentional, from the source).
+ */
+type SouffleursRange = {
+  minFt: number;
+  maxFt: number;
+  /** First value is the standard / recommended choice. */
+  options: readonly number[];
+};
+
+const SOUFFLEURS_TABLE: readonly SouffleursRange[] = [
+  { minFt: 32, maxFt: 64, options: [2] },
+  { minFt: 65, maxFt: 124, options: [3] },
+  { minFt: 126, maxFt: 135, options: [3, 6] },
+  { minFt: 136, maxFt: 146, options: [3, 4, 6] },
+  { minFt: 147, maxFt: 185, options: [4, 6] },
+] as const;
+
+export const SOUFFLEURS_TABLE_MIN_PO = 32 * 12;
+export const SOUFFLEURS_TABLE_MAX_PO = 185 * 12;
+
+export type SouffleursChoice = {
+  /** All allowed counts for this length, in order (first = standard). */
+  options: number[];
+  /** The standard / recommended count for this length. */
+  recommended: number;
+  /** Human-readable feet range (e.g. "65 à 124 pi"). */
+  feetRangeLabel: string;
+};
+
+/**
+ * Returns the allowed souffleurs counts for a given opening length (po),
+ * or null when the length is outside any table row.
+ */
+export function getSouffleursChoice(
+  longueurPo: number,
+): SouffleursChoice | null {
+  if (!Number.isFinite(longueurPo) || longueurPo <= 0) return null;
+  const feet = longueurPo / 12;
+  for (const row of SOUFFLEURS_TABLE) {
+    if (feet >= row.minFt && feet <= row.maxFt) {
+      return {
+        options: [...row.options],
+        recommended: row.options[0],
+        feetRangeLabel: `${row.minFt} à ${row.maxFt} pi`,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Legacy helper kept for backward compatibility : returns the standard
+ * recommendation only, not the full list of options.
  */
 export function recommendSouffleurs(longueurPo: number): number | null {
-  if (!Number.isFinite(longueurPo) || longueurPo <= 0) return null;
-  if (longueurPo <= 64 * 12) return 2; // ≤ 64 ft
-  if (longueurPo <= 124 * 12) return 3; // ≤ 124 ft
-  if (longueurPo <= 146 * 12) return 4;
-  return 6; // 147+ ft
+  return getSouffleursChoice(longueurPo)?.recommended ?? null;
 }
 
 /**
