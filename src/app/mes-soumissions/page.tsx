@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/app-header";
+import { SuccessBanner } from "./success-banner";
 
 export const metadata = {
   title: "Mes soumissions · Ventec",
@@ -81,8 +82,13 @@ function formatProjectMeta(s: Soumission): string {
   return [typeLabel, modelLabel].filter(Boolean).join(" · ");
 }
 
-export default async function MesSoumissionsPage() {
+export default async function MesSoumissionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ created?: string; status?: string }>;
+}) {
   const supabase = await createClient();
+  const params = await searchParams;
 
   const { data: soumissions } = await supabase
     .from("soumissions")
@@ -94,11 +100,26 @@ export default async function MesSoumissionsPage() {
 
   const items = soumissions ?? [];
 
+  const createdNumber = params.created;
+  const createdStatus: "brouillon" | "soumis" | null =
+    params.status === "soumis"
+      ? "soumis"
+      : params.status === "brouillon"
+        ? "brouillon"
+        : null;
+
   return (
     <>
       <AppHeader />
 
       <main className="max-w-5xl w-full mx-auto px-6 pb-20 pt-8">
+        {createdNumber && createdStatus && (
+          <SuccessBanner
+            soumissionNumber={createdNumber}
+            status={createdStatus}
+          />
+        )}
+
         <div className="mb-8">
           <h1 className="text-3xl font-extrabold tracking-tight">
             Mes soumissions

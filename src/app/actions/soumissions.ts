@@ -158,7 +158,7 @@ export async function createNouvelleCommande(
       status: isSubmit ? "soumis" : "brouillon",
       submitted_at: isSubmit ? new Date().toISOString() : null,
     })
-    .select("id")
+    .select("id, soumission_number")
     .single();
 
   if (sErr || !soumission) {
@@ -193,5 +193,8 @@ export async function createNouvelleCommande(
   }
 
   revalidatePath("/mes-soumissions");
-  redirect("/mes-soumissions");
+  const status = isSubmit ? "soumis" : "brouillon";
+  redirect(
+    `/mes-soumissions?created=${soumission.soumission_number}&status=${status}`,
+  );
 }

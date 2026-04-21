@@ -11,6 +11,7 @@ import {
   recommendSouffleurs,
   validateHauteurForRideau,
 } from "@/lib/soumissions/rules";
+import { OpeningSchema } from "./opening-schema";
 
 type Materiau = "bois" | "acier" | "beton";
 type RideauType = "simple" | "double";
@@ -178,9 +179,16 @@ export function NouvelleCommandeForm() {
             </button>
           </div>
 
-          {/* Recap */}
+          {/* Schema + Recap */}
           <div className="bg-white border border-[#e3e6ec] rounded-xl p-5">
             <h3 className="text-[11px] font-bold text-[#5a6278] uppercase tracking-[0.5px] mb-3">
+              Aperçu de l&apos;ouverture
+            </h3>
+            <div className="mb-5">
+              <OpeningSchema longueurPo={longueurPo} />
+            </div>
+
+            <h3 className="text-[11px] font-bold text-[#5a6278] uppercase tracking-[0.5px] mb-3 pt-4 border-t border-[#e3e6ec]">
               Votre sélection
             </h3>
 
