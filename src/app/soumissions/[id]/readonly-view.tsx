@@ -94,12 +94,22 @@ function formatDate(iso: string | null): string {
   });
 }
 
+export type InstallationFile = {
+  id: string;
+  file_name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  url: string;
+};
+
 export function SoumissionReadonly({
   soumission,
   ouvertures,
+  installationFiles = [],
 }: {
   soumission: SoumissionRow;
   ouvertures: OuvertureRow[];
+  installationFiles?: InstallationFile[];
 }) {
   const isRemplacement = soumission.type === "remplacement";
 
@@ -192,6 +202,37 @@ export function SoumissionReadonly({
             )}
           </div>
         ))
+      )}
+
+      {isRemplacement && installationFiles.length > 0 && (
+        <div className="bg-white border border-[#e3e6ec] rounded-xl overflow-hidden">
+          <div className="px-6 py-3 bg-[#fafbfc] border-b border-[#e3e6ec]">
+            <h2 className="text-[14px] font-bold">
+              Fichier de vos installations actuelles
+            </h2>
+          </div>
+          <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {installationFiles.map((f) => (
+              <a
+                key={f.id}
+                href={f.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block aspect-square rounded-lg overflow-hidden border border-[#e3e6ec] bg-white hover:border-[#1b9ae0] transition-colors relative group"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={f.url}
+                  alt={f.file_name}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 py-1 text-[10px] text-white truncate">
+                  {f.file_name}
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -340,56 +381,67 @@ function RemplacementOuvertureFields({
       )}
       {isDouble && (
         <>
-          <Field
-            label="Hauteur support haut"
-            value={
-              op.hauteur_support_haut_po !== null
-                ? `${op.hauteur_support_haut_po} po`
-                : "—"
-            }
-          />
-          <Field
-            label="Hauteur support bas"
-            value={
-              op.hauteur_support_bas_po !== null
-                ? `${op.hauteur_support_bas_po} po`
-                : "—"
-            }
-          />
-          <Field
-            label="Cellules haut"
-            value={
-              op.nb_cellules_haut !== null ? String(op.nb_cellules_haut) : "—"
-            }
-          />
-          <Field
-            label="Cellules bas"
-            value={
-              op.nb_cellules_bas !== null ? String(op.nb_cellules_bas) : "—"
-            }
-          />
+          {(op.rideau_a_remplacer === "haut" ||
+            op.rideau_a_remplacer === "les_deux") && (
+            <>
+              <Field
+                label="Hauteur support haut"
+                value={
+                  op.hauteur_support_haut_po !== null
+                    ? `${op.hauteur_support_haut_po} po`
+                    : "—"
+                }
+              />
+              <Field
+                label="Cellules haut"
+                value={
+                  op.nb_cellules_haut !== null
+                    ? String(op.nb_cellules_haut)
+                    : "—"
+                }
+              />
+              <Field
+                label="Soufflerie du haut"
+                value={
+                  op.souffleurs_count_haut !== null
+                    ? String(op.souffleurs_count_haut)
+                    : "—"
+                }
+              />
+            </>
+          )}
+          {(op.rideau_a_remplacer === "bas" ||
+            op.rideau_a_remplacer === "les_deux") && (
+            <>
+              <Field
+                label="Hauteur support bas"
+                value={
+                  op.hauteur_support_bas_po !== null
+                    ? `${op.hauteur_support_bas_po} po`
+                    : "—"
+                }
+              />
+              <Field
+                label="Cellules bas"
+                value={
+                  op.nb_cellules_bas !== null
+                    ? String(op.nb_cellules_bas)
+                    : "—"
+                }
+              />
+              <Field
+                label="Soufflerie du bas"
+                value={
+                  op.souffleurs_count_bas !== null
+                    ? String(op.souffleurs_count_bas)
+                    : "—"
+                }
+              />
+            </>
+          )}
         </>
       )}
-      {isDouble ? (
-        <>
-          <Field
-            label="Soufflerie du haut"
-            value={
-              op.souffleurs_count_haut !== null
-                ? String(op.souffleurs_count_haut)
-                : "—"
-            }
-          />
-          <Field
-            label="Soufflerie du bas"
-            value={
-              op.souffleurs_count_bas !== null
-                ? String(op.souffleurs_count_bas)
-                : "—"
-            }
-          />
-        </>
-      ) : (
+      {!isDouble && (
         <Field
           label="Nombre de souffleurs"
           value={

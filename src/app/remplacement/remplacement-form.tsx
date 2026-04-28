@@ -4,11 +4,11 @@ import { useActionState, useMemo, useState } from "react";
 import type { SoumissionFormState } from "@/app/actions/soumissions";
 import {
   getCellsForHauteurSimple,
-  getCellsForHauteurDouble,
   MODELES_POLYMAT,
   type ModelePolymat,
 } from "@/lib/soumissions/rules";
 import { HauteurIcon, LongueurIcon } from "@/components/measurement-icons";
+import { FileDropzone } from "@/components/file-dropzone";
 import { PolymatDrawing } from "./polymat-drawing";
 
 type ManufacturierOrigine = "ventec" | "autre";
@@ -37,9 +37,11 @@ export type RemplacementOpeningDraft = {
   hauteur_support_haut_po: string;
   hauteur_support_bas_po: string;
   modele_polymat: ModelePolymat | "";
-  /** Longueur du polymat saisie en pieds. Convertie en pouces avant
-   * envoi au server (x12). */
+  /** Longueur du polymat — partie en pieds. */
   longueur_pi: string;
+  /** Longueur du polymat — pouces résiduels (0–11). Total envoyé au server
+   *  = longueur_pi × 12 + longueur_po. */
+  longueur_po: string;
   nb_cellules_simple: string;
   nb_cellules_haut: string;
   nb_cellules_bas: string;
@@ -74,6 +76,7 @@ function emptyOpening(): RemplacementOpeningDraft {
     hauteur_support_bas_po: "",
     modele_polymat: "",
     longueur_pi: "",
+    longueur_po: "",
     nb_cellules_simple: "",
     nb_cellules_haut: "",
     nb_cellules_bas: "",
@@ -124,31 +127,62 @@ export function RemplacementForm({
 
   const active = openings[activeIndex];
 
-  // Saisie en pieds, convertie en pouces pour le reste de la logique (DB).
+  // Saisie en pieds + pouces, convertie en pouces totaux pour la BD.
   const longueurPi = parseNum(active.longueur_pi);
-  const longueurPo = longueurPi !== null ? longueurPi * 12 : null;
+  const longueurPoReste = parseNum(active.longueur_po);
+  const longueurPo =
+    longueurPi !== null || longueurPoReste !== null
+      ? (longueurPi ?? 0) * 12 + (longueurPoReste ?? 0)
+      : null;
 
   const hauteurSimplePo = parseNum(active.hauteur_support_simple_po);
   const hauteurHautPo = parseNum(active.hauteur_support_haut_po);
   const hauteurBasPo = parseNum(active.hauteur_support_bas_po);
   const cellsSimpleRec =
     hauteurSimplePo !== null ? getCellsForHauteurSimple(hauteurSimplePo) : null;
-  // Double : somme haut+bas → lookup unique → { haut, bas }
-  const hauteurDoubleTotalePo =
-    hauteurHautPo !== null && hauteurBasPo !== null
-      ? hauteurHautPo + hauteurBasPo
-      : null;
-  const cellsDoubleRec =
-    hauteurDoubleTotalePo !== null
-      ? getCellsForHauteurDouble(hauteurDoubleTotalePo)
-      : null;
-  const cellsHautRec = cellsDoubleRec?.haut ?? null;
-  const cellsBasRec = cellsDoubleRec?.bas ?? null;
+
+  // Cellules en systeme double : lookup INDÉPENDANT par côté dans la
+  // table simple, basé sur la hauteur du support de ce côté. (Même logique
+  // pour les_deux, haut ou bas — chaque côté est traité individuellement.)
+  let cellsHautRec: number | null = null;
+  let cellsBasRec: number | null = null;
+  if (active.systeme === "double") {
+    const showHaut =
+      active.rideau_a_remplacer === "haut" ||
+      active.rideau_a_remplacer === "les_deux";
+    const showBas =
+      active.rideau_a_remplacer === "bas" ||
+      active.rideau_a_remplacer === "les_deux";
+    if (showHaut && hauteurHautPo !== null) {
+      cellsHautRec = getCellsForHauteurSimple(hauteurHautPo);
+    }
+    if (showBas && hauteurBasPo !== null) {
+      cellsBasRec = getCellsForHauteurSimple(hauteurBasPo);
+    }
+  }
 
   function updateActive(patch: Partial<RemplacementOpeningDraft>) {
     setOpenings((prev) =>
       prev.map((op, i) => (i === activeIndex ? { ...op, ...patch } : op)),
     );
+  }
+
+  // Change le rideau à remplacer ET vide les champs du côté non remplacé
+  // (hauteur du support, cellules, souffleurs) pour éviter les conflits.
+  function setRideauARemplacer(value: RideauARemplacer) {
+    const patch: Partial<RemplacementOpeningDraft> = {
+      rideau_a_remplacer: value,
+    };
+    if (value === "haut") {
+      patch.hauteur_support_bas_po = "";
+      patch.nb_cellules_bas = "";
+      patch.souffleurs_count_bas = "";
+    } else if (value === "bas") {
+      patch.hauteur_support_haut_po = "";
+      patch.nb_cellules_haut = "";
+      patch.souffleurs_count_haut = "";
+    }
+    updateActive(patch);
   }
 
   function addOpening() {
@@ -177,12 +211,18 @@ export function RemplacementForm({
       JSON.stringify({
         project_name: projectName,
         manufacturier_origine: manufacturier,
-        // Convertit longueur_pi (pieds) en longueur_po (pouces) avant envoi.
+        // Convertit longueur_pi + longueur_po (résidu) en pouces totaux
+        // avant envoi au server.
         openings: openings.map((op) => {
           const pi = parseNum(op.longueur_pi);
+          const poReste = parseNum(op.longueur_po);
+          const total =
+            pi !== null || poReste !== null
+              ? (pi ?? 0) * 12 + (poReste ?? 0)
+              : null;
           return {
             ...op,
-            longueur_po: pi !== null ? String(pi * 12) : "",
+            longueur_po: total !== null ? String(total) : "",
           };
         }),
       }),
@@ -201,14 +241,9 @@ export function RemplacementForm({
   // étant masquée pour autre, le grid contient juste 3 et 5.
   const sideBySideHauteurLongueur =
     !isDouble && manufacturier === "autre";
-  // Pour systeme double, les deux hauteurs sont requises (somme utilisée
-  // pour calcul cellules + souffleurs). Si l'utilisateur ne remplace qu'un
-  // côté, l'autre hauteur reste informative mais nécessaire.
-  const hautOnlyInformative =
-    isDouble && active.rideau_a_remplacer === "bas";
-  const basOnlyInformative =
-    isDouble && active.rideau_a_remplacer === "haut";
-  // Cellules : uniquement saisies pour les côtés effectivement remplacés.
+  // En systeme double : on n'affiche que les côtés effectivement remplacés
+  // (hauteur du support, cellules, souffleurs). Évite les conflits de
+  // données : seule la configuration active reste à l'écran.
   const replaceHaut =
     isDouble &&
     (active.rideau_a_remplacer === "haut" ||
@@ -351,7 +386,9 @@ export function RemplacementForm({
                     <div className="flex justify-between gap-3">
                       <dt className="text-[#5a6278]">Longueur polymat</dt>
                       <dd className="font-semibold">
-                        {op.longueur_pi ? `${op.longueur_pi} pi` : "—"}
+                        {op.longueur_pi || op.longueur_po
+                          ? `${op.longueur_pi || "0"} pi${op.longueur_po ? ` ${op.longueur_po} po` : ""}`
+                          : "—"}
                       </dd>
                     </div>
                     {op.systeme === "simple" ? (
@@ -370,32 +407,50 @@ export function RemplacementForm({
                         </div>
                       </>
                     ) : (
-                      <>
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-[#5a6278]">Support haut</dt>
-                          <dd className="font-semibold">
-                            {formatInches(op.hauteur_support_haut_po)}
-                          </dd>
-                        </div>
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-[#5a6278]">Support bas</dt>
-                          <dd className="font-semibold">
-                            {formatInches(op.hauteur_support_bas_po)}
-                          </dd>
-                        </div>
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-[#5a6278]">Cellules haut</dt>
-                          <dd className="font-semibold">
-                            {op.nb_cellules_haut || "—"}
-                          </dd>
-                        </div>
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-[#5a6278]">Cellules bas</dt>
-                          <dd className="font-semibold">
-                            {op.nb_cellules_bas || "—"}
-                          </dd>
-                        </div>
-                      </>
+                      (() => {
+                        const showHaut =
+                          op.rideau_a_remplacer === "haut" ||
+                          op.rideau_a_remplacer === "les_deux";
+                        const showBas =
+                          op.rideau_a_remplacer === "bas" ||
+                          op.rideau_a_remplacer === "les_deux";
+                        return (
+                          <>
+                            {showHaut && (
+                              <>
+                                <div className="flex justify-between gap-3">
+                                  <dt className="text-[#5a6278]">Support haut</dt>
+                                  <dd className="font-semibold">
+                                    {formatInches(op.hauteur_support_haut_po)}
+                                  </dd>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                  <dt className="text-[#5a6278]">Cellules haut</dt>
+                                  <dd className="font-semibold">
+                                    {op.nb_cellules_haut || "—"}
+                                  </dd>
+                                </div>
+                              </>
+                            )}
+                            {showBas && (
+                              <>
+                                <div className="flex justify-between gap-3">
+                                  <dt className="text-[#5a6278]">Support bas</dt>
+                                  <dd className="font-semibold">
+                                    {formatInches(op.hauteur_support_bas_po)}
+                                  </dd>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                  <dt className="text-[#5a6278]">Cellules bas</dt>
+                                  <dd className="font-semibold">
+                                    {op.nb_cellules_bas || "—"}
+                                  </dd>
+                                </div>
+                              </>
+                            )}
+                          </>
+                        );
+                      })()
                     )}
                     {op.systeme === "simple" ? (
                       <div className="flex justify-between gap-3">
@@ -411,23 +466,29 @@ export function RemplacementForm({
                       </div>
                     ) : (
                       <>
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-[#5a6278]">Soufflerie haut</dt>
-                          <dd className="font-semibold">
-                            {op.souffleurs_count_haut || "—"}
-                          </dd>
-                        </div>
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-[#5a6278]">Soufflerie bas</dt>
-                          <dd className="font-semibold">
-                            {op.souffleurs_count_bas || "—"}
-                            {op.souffleurs_aux_deux_extremites && (
-                              <span className="ml-1.5 text-[11px] font-normal text-[#5a6278]">
-                                · 2 extrémités
-                              </span>
-                            )}
-                          </dd>
-                        </div>
+                        {(op.rideau_a_remplacer === "haut" ||
+                          op.rideau_a_remplacer === "les_deux") && (
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-[#5a6278]">Soufflerie haut</dt>
+                            <dd className="font-semibold">
+                              {op.souffleurs_count_haut || "—"}
+                            </dd>
+                          </div>
+                        )}
+                        {(op.rideau_a_remplacer === "bas" ||
+                          op.rideau_a_remplacer === "les_deux") && (
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-[#5a6278]">Soufflerie bas</dt>
+                            <dd className="font-semibold">
+                              {op.souffleurs_count_bas || "—"}
+                              {op.souffleurs_aux_deux_extremites && (
+                                <span className="ml-1.5 text-[11px] font-normal text-[#5a6278]">
+                                  · 2 extrémités
+                                </span>
+                              )}
+                            </dd>
+                          </div>
+                        )}
                       </>
                     )}
                   </dl>
@@ -576,9 +637,7 @@ export function RemplacementForm({
                         <button
                           key={opt.value}
                           type="button"
-                          onClick={() =>
-                            updateActive({ rideau_a_remplacer: opt.value })
-                          }
+                          onClick={() => setRideauARemplacer(opt.value)}
                           className={`border-[1.5px] rounded-lg p-3 text-center transition-all ${
                             active.rideau_a_remplacer === opt.value
                               ? "border-[#1b9ae0] bg-[#1b9ae0]/[0.06] ring-1 ring-inset ring-[#1b9ae0]"
@@ -636,75 +695,61 @@ export function RemplacementForm({
                     </span>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="border-[1.5px] rounded-xl p-4 border-[#e3e6ec] bg-[#fafbfc]">
-                      <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-                        <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
-                          Support haut
-                        </span>
-                        {hautOnlyInformative && (
-                          <span className="bg-[#f4f5f8] text-[#5a6278] text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                            informatif
+                  <div
+                    className={`grid grid-cols-1 ${replaceHaut && replaceBas ? "sm:grid-cols-2" : ""} gap-3`}
+                  >
+                    {replaceHaut && (
+                      <div className="border-[1.5px] rounded-xl p-4 border-[#e3e6ec] bg-[#fafbfc]">
+                        <div className="flex items-center gap-2.5 mb-3 flex-wrap">
+                          <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
+                            Support haut
                           </span>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={0}
-                          value={active.hauteur_support_haut_po}
-                          onChange={(e) =>
-                            updateActive({
-                              hauteur_support_haut_po: e.target.value,
-                            })
-                          }
-                          placeholder="72"
-                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
-                          po
-                        </span>
-                      </div>
-                      {hautOnlyInformative && (
-                        <p className="mt-2 text-[12px] text-[#5a6278]">
-                          Requis pour le calcul des cellules et souffleurs.
-                        </p>
-                      )}
-                    </div>
-                    <div className="border-[1.5px] rounded-xl p-4 border-[#e3e6ec] bg-[#fafbfc]">
-                      <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-                        <span className="bg-[#1a1f2e] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
-                          Support bas
-                        </span>
-                        {basOnlyInformative && (
-                          <span className="bg-[#f4f5f8] text-[#5a6278] text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                            informatif
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min={0}
+                            value={active.hauteur_support_haut_po}
+                            onChange={(e) =>
+                              updateActive({
+                                hauteur_support_haut_po: e.target.value,
+                              })
+                            }
+                            placeholder="72"
+                            className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                            po
                           </span>
-                        )}
+                        </div>
                       </div>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={0}
-                          value={active.hauteur_support_bas_po}
-                          onChange={(e) =>
-                            updateActive({
-                              hauteur_support_bas_po: e.target.value,
-                            })
-                          }
-                          placeholder="60"
-                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
-                          po
-                        </span>
+                    )}
+                    {replaceBas && (
+                      <div className="border-[1.5px] rounded-xl p-4 border-[#e3e6ec] bg-[#fafbfc]">
+                        <div className="flex items-center gap-2.5 mb-3 flex-wrap">
+                          <span className="bg-[#1a1f2e] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
+                            Support bas
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min={0}
+                            value={active.hauteur_support_bas_po}
+                            onChange={(e) =>
+                              updateActive({
+                                hauteur_support_bas_po: e.target.value,
+                              })
+                            }
+                            placeholder="60"
+                            className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                            po
+                          </span>
+                        </div>
                       </div>
-                      {basOnlyInformative && (
-                        <p className="mt-2 text-[12px] text-[#5a6278]">
-                          Requis pour le calcul des cellules et souffleurs.
-                        </p>
-                      )}
-                    </div>
+                    )}
                   </div>
                 )}
               </section>
@@ -779,23 +824,42 @@ export function RemplacementForm({
                   5. Longueur du polymat
                 </h3>
                 <p className="text-sm text-[#5a6278] mb-3">
-                  Longueur du polymat en pieds.
+                  Saisissez la longueur en pieds et pouces.
                 </p>
-                <div className="max-w-[260px] relative">
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={active.longueur_pi}
-                    onChange={(e) =>
-                      updateActive({ longueur_pi: e.target.value })
-                    }
-                    placeholder="100"
-                    className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
-                    pi
-                  </span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="relative w-[140px]">
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={active.longueur_pi}
+                      onChange={(e) =>
+                        updateActive({ longueur_pi: e.target.value })
+                      }
+                      placeholder="100"
+                      className="w-full min-h-12 px-3.5 pr-12 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                      pi
+                    </span>
+                  </div>
+                  <div className="relative w-[140px]">
+                    <input
+                      type="number"
+                      min={0}
+                      max={11}
+                      step={1}
+                      value={active.longueur_po}
+                      onChange={(e) =>
+                        updateActive({ longueur_po: e.target.value })
+                      }
+                      placeholder="6"
+                      className="w-full min-h-12 px-3.5 pr-12 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                      po
+                    </span>
+                  </div>
                 </div>
               </section>
               </div>
@@ -816,31 +880,41 @@ export function RemplacementForm({
                       Entrez d&apos;abord la hauteur du support à l&apos;étape 3.
                     </div>
                   ) : (
-                    <div className="flex items-start gap-3 flex-wrap">
-                      <div className="max-w-[220px]">
-                        <input
-                          type="number"
-                          min={0}
-                          value={active.nb_cellules_simple}
-                          onChange={(e) =>
-                            updateActive({ nb_cellules_simple: e.target.value })
-                          }
-                          placeholder={
-                            cellsSimpleRec !== null ? String(cellsSimpleRec) : ""
-                          }
-                          className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                        />
+                    <>
+                      <div className="flex items-start gap-3 flex-wrap">
+                        <div className="max-w-[220px]">
+                          <input
+                            type="number"
+                            min={0}
+                            value={active.nb_cellules_simple}
+                            onChange={(e) =>
+                              updateActive({
+                                nb_cellules_simple: e.target.value,
+                              })
+                            }
+                            placeholder={
+                              cellsSimpleRec !== null
+                                ? String(cellsSimpleRec)
+                                : ""
+                            }
+                            className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                          />
+                        </div>
+                        {cellsSimpleRec !== null ? (
+                          <div className="bg-[#f0f7fb] text-[#0f7bb5] px-2.5 py-1.5 rounded-md text-xs font-semibold">
+                            Recommandé : {cellsSimpleRec}
+                          </div>
+                        ) : (
+                          <div className="bg-[#fff7e5] text-[#7a5d00] px-2.5 py-1.5 rounded-md text-xs font-semibold">
+                            Hors table standard
+                          </div>
+                        )}
                       </div>
-                      {cellsSimpleRec !== null ? (
-                        <div className="bg-[#f0f7fb] text-[#0f7bb5] px-2.5 py-1.5 rounded-md text-xs font-semibold">
-                          Recommandé : {cellsSimpleRec}
-                        </div>
-                      ) : (
-                        <div className="bg-[#fff7e5] text-[#7a5d00] px-2.5 py-1.5 rounded-md text-xs font-semibold">
-                          Hors table standard
-                        </div>
-                      )}
-                    </div>
+                      <CellsMismatchWarning
+                        value={active.nb_cellules_simple}
+                        recommendation={cellsSimpleRec}
+                      />
+                    </>
                   )
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -891,53 +965,59 @@ export function RemplacementForm({
                     </select>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
-                      <div className="flex items-center gap-2.5 mb-3">
-                        <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
-                          Soufflerie du haut
-                        </span>
+                  <div
+                    className={`grid grid-cols-1 ${replaceHaut && replaceBas ? "sm:grid-cols-2" : ""} gap-3`}
+                  >
+                    {replaceHaut && (
+                      <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
+                            Soufflerie du haut
+                          </span>
+                        </div>
+                        <select
+                          value={active.souffleurs_count_haut}
+                          onChange={(e) =>
+                            updateActive({
+                              souffleurs_count_haut: e.target.value,
+                            })
+                          }
+                          className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                        >
+                          <option value="">— Sélectionner —</option>
+                          {souffleurOptions.map((n) => (
+                            <option key={n} value={String(n)}>
+                              {n} souffleur{n > 1 ? "s" : ""}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <select
-                        value={active.souffleurs_count_haut}
-                        onChange={(e) =>
-                          updateActive({
-                            souffleurs_count_haut: e.target.value,
-                          })
-                        }
-                        className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                      >
-                        <option value="">— Sélectionner —</option>
-                        {souffleurOptions.map((n) => (
-                          <option key={n} value={String(n)}>
-                            {n} souffleur{n > 1 ? "s" : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
-                      <div className="flex items-center gap-2.5 mb-3">
-                        <span className="bg-[#1a1f2e] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
-                          Soufflerie du bas
-                        </span>
+                    )}
+                    {replaceBas && (
+                      <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <span className="bg-[#1a1f2e] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
+                            Soufflerie du bas
+                          </span>
+                        </div>
+                        <select
+                          value={active.souffleurs_count_bas}
+                          onChange={(e) =>
+                            updateActive({
+                              souffleurs_count_bas: e.target.value,
+                            })
+                          }
+                          className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                        >
+                          <option value="">— Sélectionner —</option>
+                          {souffleurOptions.map((n) => (
+                            <option key={n} value={String(n)}>
+                              {n} souffleur{n > 1 ? "s" : ""}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <select
-                        value={active.souffleurs_count_bas}
-                        onChange={(e) =>
-                          updateActive({
-                            souffleurs_count_bas: e.target.value,
-                          })
-                        }
-                        className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                      >
-                        <option value="">— Sélectionner —</option>
-                        {souffleurOptions.map((n) => (
-                          <option key={n} value={String(n)}>
-                            {n} souffleur{n > 1 ? "s" : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -961,6 +1041,18 @@ export function RemplacementForm({
                     </div>
                   </div>
                 </label>
+              </section>
+
+              {/* Fichiers d'installation actuels */}
+              <section>
+                <h3 className="text-[15px] font-bold mb-1">
+                  8. Fichier de vos installations actuelles
+                </h3>
+                <p className="text-sm text-[#5a6278] mb-3">
+                  Joignez des photos de l&apos;installation existante (optionnel).
+                  Maximum 5 fichiers.
+                </p>
+                <FileDropzone name="installation_files" />
               </section>
             </div>
           </div>
@@ -1069,8 +1161,39 @@ function CellsInputCard({
               Hors table standard
             </div>
           )}
+          <CellsMismatchWarning
+            value={value}
+            recommendation={recommendation}
+          />
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Avertissement non-bloquant affiché quand le nombre de cellules saisi
+ * diffère de la recommandation issue du tableau.
+ */
+function CellsMismatchWarning({
+  value,
+  recommendation,
+}: {
+  value: string;
+  recommendation: number | null;
+}) {
+  if (recommendation === null || !value) return null;
+  const entered = Number(value);
+  if (!Number.isFinite(entered) || entered === recommendation) return null;
+  return (
+    <div className="mt-2 rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-2.5 text-[12px] text-[#7a5d00] flex items-start gap-2">
+      <span aria-hidden>⚠</span>
+      <div>
+        La hauteur entrée correspond généralement à{" "}
+        <span className="font-bold">{recommendation}</span> cellule
+        {recommendation > 1 ? "s" : ""}. Êtes-vous sûr de vouloir continuer
+        avec {entered} ?
+      </div>
     </div>
   );
 }

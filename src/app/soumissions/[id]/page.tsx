@@ -114,9 +114,16 @@ function toRemplacementDraft(op: OuvertureRow): RemplacementOpeningDraft {
         : "",
     modele_polymat: (op.modele_polymat ??
       "") as RemplacementOpeningDraft["modele_polymat"],
-    // Saisi en pieds : reconvertir le total stocké en pouces.
+    // Saisi en pieds + pouces : reconvertir le total stocké (po) en pi + po.
     longueur_pi:
-      op.longueur_po !== null ? String(Math.round(op.longueur_po / 12)) : "",
+      op.longueur_po !== null ? String(Math.floor(op.longueur_po / 12)) : "",
+    longueur_po:
+      op.longueur_po !== null
+        ? (() => {
+            const reste = op.longueur_po - Math.floor(op.longueur_po / 12) * 12;
+            return reste > 0 ? String(reste) : "";
+          })()
+        : "",
     nb_cellules_simple:
       op.nb_cellules_simple !== null ? String(op.nb_cellules_simple) : "",
     nb_cellules_haut:
@@ -165,6 +172,36 @@ export default async function SoumissionDetailPage({
 
   const ouvertures = (ouverturesData ?? []) as OuvertureRow[];
 
+  // Fichiers d'installation (remplacement) — générer des signed URLs pour
+  // afficher les previews dans la vue readonly (bucket privé).
+  const { data: filesData } = await supabase
+    .from("soumission_files")
+    .select("id, file_path, file_name, mime_type, size_bytes")
+    .eq("soumission_id", id)
+    .order("created_at");
+
+  const installationFiles: {
+    id: string;
+    file_name: string;
+    mime_type: string | null;
+    size_bytes: number | null;
+    url: string;
+  }[] = [];
+  for (const f of filesData ?? []) {
+    const { data: signed } = await supabase.storage
+      .from("soumission-files")
+      .createSignedUrl(f.file_path, 60 * 60); // 1 h
+    if (signed?.signedUrl) {
+      installationFiles.push({
+        id: f.id,
+        file_name: f.file_name,
+        mime_type: f.mime_type,
+        size_bytes: f.size_bytes,
+        url: signed.signedUrl,
+      });
+    }
+  }
+
   const isDraftEditable = soumission.status === "brouillon";
 
   return (
@@ -207,7 +244,11 @@ export default async function SoumissionDetailPage({
             cancelHref="/mes-soumissions"
           />
         ) : (
-          <SoumissionReadonly soumission={soumission} ouvertures={ouvertures} />
+          <SoumissionReadonly
+            soumission={soumission}
+            ouvertures={ouvertures}
+            installationFiles={installationFiles}
+          />
         )}
       </main>
     </>

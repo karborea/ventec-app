@@ -169,6 +169,67 @@ export function NouvelleCommandeForm({
     );
   }
 
+  // Auto-distribution active uniquement pour rideau double HORS-STANDARD :
+  // - Saisir la hauteur totale → split 50/50 entre haut et bas
+  // - Modifier le haut → bas se recalcule automatiquement (total − haut)
+  // - Modifier le bas → haut se recalcule automatiquement (total − bas)
+  // (Standard : section 5 masquée, donc auto-distribution non applicable.)
+  const isAutoDistribute =
+    active.rideau_type === "double" &&
+    active.rideau_grandeur === "hors_standard";
+
+  function handleTotaleChange(value: string) {
+    if (!isAutoDistribute) {
+      updateActive({ longueur_totale_po: value });
+      return;
+    }
+    const total = parseNum(value);
+    if (total === null) {
+      updateActive({ longueur_totale_po: value });
+      return;
+    }
+    const half = Math.floor(total / 2);
+    updateActive({
+      longueur_totale_po: value,
+      polymat_haut_hauteur_po: String(half),
+      polymat_bas_hauteur_po: String(total - half),
+    });
+  }
+
+  function handleHautHauteurChange(value: string) {
+    if (!isAutoDistribute) {
+      updateActive({ polymat_haut_hauteur_po: value });
+      return;
+    }
+    const total = parseNum(active.longueur_totale_po);
+    const haut = parseNum(value);
+    if (total === null || haut === null) {
+      updateActive({ polymat_haut_hauteur_po: value });
+      return;
+    }
+    updateActive({
+      polymat_haut_hauteur_po: value,
+      polymat_bas_hauteur_po: String(Math.max(0, total - haut)),
+    });
+  }
+
+  function handleBasHauteurChange(value: string) {
+    if (!isAutoDistribute) {
+      updateActive({ polymat_bas_hauteur_po: value });
+      return;
+    }
+    const total = parseNum(active.longueur_totale_po);
+    const bas = parseNum(value);
+    if (total === null || bas === null) {
+      updateActive({ polymat_bas_hauteur_po: value });
+      return;
+    }
+    updateActive({
+      polymat_bas_hauteur_po: value,
+      polymat_haut_hauteur_po: String(Math.max(0, total - bas)),
+    });
+  }
+
   function addOpening() {
     setOpenings((prev) => {
       const next = [...prev, emptyOpening()];
@@ -695,11 +756,7 @@ export function NouvelleCommandeForm({
                           type="number"
                           min={0}
                           value={active.longueur_totale_po}
-                          onChange={(e) =>
-                            updateActive({
-                              longueur_totale_po: e.target.value,
-                            })
-                          }
+                          onChange={(e) => handleTotaleChange(e.target.value)}
                           placeholder="1440"
                           className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
                         />
@@ -787,9 +844,7 @@ export function NouvelleCommandeForm({
                           min={0}
                           value={active.polymat_haut_hauteur_po}
                           onChange={(e) =>
-                            updateActive({
-                              polymat_haut_hauteur_po: e.target.value,
-                            })
+                            handleHautHauteurChange(e.target.value)
                           }
                           placeholder="62"
                           className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
@@ -812,9 +867,7 @@ export function NouvelleCommandeForm({
                           min={0}
                           value={active.polymat_bas_hauteur_po}
                           onChange={(e) =>
-                            updateActive({
-                              polymat_bas_hauteur_po: e.target.value,
-                            })
+                            handleBasHauteurChange(e.target.value)
                           }
                           placeholder="70"
                           className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"

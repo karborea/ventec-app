@@ -478,11 +478,16 @@ function parseRemplacementPayload(
       modele_polymat: modele,
       longueur_po: toInt(op.longueur_po),
       nb_cellules_simple: !isDouble ? toInt(op.nb_cellules_simple) : null,
-      nb_cellules_haut: isDouble ? toInt(op.nb_cellules_haut) : null,
-      nb_cellules_bas: isDouble ? toInt(op.nb_cellules_bas) : null,
+      // Cellules + souffleurs : seulement saisis pour les côtés effectivement
+      // remplacés (haut, bas ou les_deux).
+      nb_cellules_haut:
+        isDouble && wantHaut ? toInt(op.nb_cellules_haut) : null,
+      nb_cellules_bas: isDouble && wantBas ? toInt(op.nb_cellules_bas) : null,
       souffleurs_count: !isDouble ? toInt(op.souffleurs_count) : null,
-      souffleurs_count_haut: isDouble ? toInt(op.souffleurs_count_haut) : null,
-      souffleurs_count_bas: isDouble ? toInt(op.souffleurs_count_bas) : null,
+      souffleurs_count_haut:
+        isDouble && wantHaut ? toInt(op.souffleurs_count_haut) : null,
+      souffleurs_count_bas:
+        isDouble && wantBas ? toInt(op.souffleurs_count_bas) : null,
       souffleurs_aux_deux_extremites:
         op.souffleurs_aux_deux_extremites === true,
     };
@@ -545,45 +550,45 @@ function validateRemplacementForSubmission(
         };
       }
     } else {
-      // Systeme double : les deux hauteurs sont toujours requises
-      // (somme utilisée pour le calcul des cellules et souffleurs).
-      if (!op.hauteur_support_haut_po) {
+      // Systeme double : seuls les côtés effectivement remplacés sont
+      // requis (hauteur du support, cellules, souffleurs).
+      const needHaut =
+        op.rideau_a_remplacer === "haut" ||
+        op.rideau_a_remplacer === "les_deux";
+      const needBas =
+        op.rideau_a_remplacer === "bas" ||
+        op.rideau_a_remplacer === "les_deux";
+      if (needHaut && !op.hauteur_support_haut_po) {
         return {
           ok: false,
           error: `Ouverture ${n} : la hauteur du support haut est requise.`,
         };
       }
-      if (!op.hauteur_support_bas_po) {
+      if (needBas && !op.hauteur_support_bas_po) {
         return {
           ok: false,
           error: `Ouverture ${n} : la hauteur du support bas est requise.`,
         };
       }
-      const needCellulesHaut =
-        op.rideau_a_remplacer === "haut" ||
-        op.rideau_a_remplacer === "les_deux";
-      const needCellulesBas =
-        op.rideau_a_remplacer === "bas" ||
-        op.rideau_a_remplacer === "les_deux";
-      if (needCellulesHaut && !op.nb_cellules_haut) {
+      if (needHaut && !op.nb_cellules_haut) {
         return {
           ok: false,
           error: `Ouverture ${n} : le nombre de cellules du haut est requis.`,
         };
       }
-      if (needCellulesBas && !op.nb_cellules_bas) {
+      if (needBas && !op.nb_cellules_bas) {
         return {
           ok: false,
           error: `Ouverture ${n} : le nombre de cellules du bas est requis.`,
         };
       }
-      if (!op.souffleurs_count_haut) {
+      if (needHaut && !op.souffleurs_count_haut) {
         return {
           ok: false,
           error: `Ouverture ${n} : le nombre de souffleurs du haut est requis.`,
         };
       }
-      if (!op.souffleurs_count_bas) {
+      if (needBas && !op.souffleurs_count_bas) {
         return {
           ok: false,
           error: `Ouverture ${n} : le nombre de souffleurs du bas est requis.`,
@@ -617,6 +622,64 @@ function remplacementOuvertureRow(
     souffleurs_count_bas: op.souffleurs_count_bas ?? null,
     souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites ?? false,
   };
+}
+
+const STORAGE_BUCKET = "soumission-files";
+const ALLOWED_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/avif",
+]);
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILES = 5;
+
+/**
+ * Upload des fichiers d'installation joints au formulaire vers Supabase
+ * Storage + insertion d'une ligne dans soumission_files par fichier.
+ * Les erreurs sont loggées mais n'empêchent pas la soumission de réussir
+ * (les fichiers sont optionnels).
+ */
+async function uploadInstallationFiles(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  soumissionId: string,
+  formData: FormData,
+): Promise<void> {
+  const raw = formData.getAll("installation_files");
+  const files: File[] = [];
+  for (const f of raw) {
+    if (typeof f !== "object" || f === null) continue;
+    const file = f as File;
+    if (typeof file.size !== "number" || file.size === 0) continue;
+    if (!ALLOWED_MIME.has(file.type)) continue;
+    if (file.size > MAX_FILE_SIZE) continue;
+    files.push(file);
+    if (files.length >= MAX_FILES) break;
+  }
+  if (files.length === 0) return;
+
+  for (const file of files) {
+    const ts = Date.now();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${soumissionId}/${ts}-${safeName}`;
+    const { error: upErr } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+    if (upErr) {
+      console.error("uploadInstallationFiles", path, upErr.message);
+      continue;
+    }
+    await supabase.from("soumission_files").insert({
+      soumission_id: soumissionId,
+      file_path: path,
+      file_name: file.name,
+      mime_type: file.type,
+      size_bytes: file.size,
+    });
+  }
 }
 
 export async function createRemplacement(
@@ -676,6 +739,8 @@ export async function createRemplacement(
       return { error: "Impossible de sauvegarder les ouvertures. Réessayez." };
     }
   }
+
+  await uploadInstallationFiles(supabase, soumission.id, formData);
 
   revalidatePath("/mes-soumissions");
   const status = isSubmit ? "soumis" : "brouillon";
@@ -762,6 +827,8 @@ export async function updateRemplacement(
       return { error: "Impossible de sauvegarder les ouvertures." };
     }
   }
+
+  await uploadInstallationFiles(supabase, soumissionId, formData);
 
   revalidatePath("/mes-soumissions");
   revalidatePath(`/soumissions/${soumissionId}`);
