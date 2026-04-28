@@ -58,11 +58,18 @@ export type OuvertureRow = {
   nb_cellules_simple: number | null;
   nb_cellules_haut: number | null;
   nb_cellules_bas: number | null;
+  souffleurs_count_haut: number | null;
+  souffleurs_count_bas: number | null;
 };
 
 function toNouvelleDraft(op: OuvertureRow): OpeningDraft {
+  // Split saved total (po) back into pieds + pouces résiduels for the form.
+  const totalPo = op.longueur_po;
+  const piPart = totalPo !== null ? Math.floor(totalPo / 12) : null;
+  const poPart = totalPo !== null ? totalPo - (piPart ?? 0) * 12 : null;
   return {
-    longueur_po: op.longueur_po !== null ? String(op.longueur_po) : "",
+    longueur_pi: piPart !== null ? String(piPart) : "",
+    longueur_po: poPart !== null && poPart > 0 ? String(poPart) : "",
     longueur_totale_po:
       op.longueur_totale_po !== null ? String(op.longueur_totale_po) : "",
     materiau_haut: (op.materiau_haut ?? "bois") as OpeningDraft["materiau_haut"],
@@ -107,7 +114,9 @@ function toRemplacementDraft(op: OuvertureRow): RemplacementOpeningDraft {
         : "",
     modele_polymat: (op.modele_polymat ??
       "") as RemplacementOpeningDraft["modele_polymat"],
-    longueur_po: op.longueur_po !== null ? String(op.longueur_po) : "",
+    // Saisi en pieds : reconvertir le total stocké en pouces.
+    longueur_pi:
+      op.longueur_po !== null ? String(Math.round(op.longueur_po / 12)) : "",
     nb_cellules_simple:
       op.nb_cellules_simple !== null ? String(op.nb_cellules_simple) : "",
     nb_cellules_haut:
@@ -116,6 +125,12 @@ function toRemplacementDraft(op: OuvertureRow): RemplacementOpeningDraft {
       op.nb_cellules_bas !== null ? String(op.nb_cellules_bas) : "",
     souffleurs_count:
       op.souffleurs_count !== null ? String(op.souffleurs_count) : "",
+    souffleurs_count_haut:
+      op.souffleurs_count_haut !== null
+        ? String(op.souffleurs_count_haut)
+        : "",
+    souffleurs_count_bas:
+      op.souffleurs_count_bas !== null ? String(op.souffleurs_count_bas) : "",
     souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites === true,
   };
 }
@@ -143,7 +158,7 @@ export default async function SoumissionDetailPage({
   const { data: ouverturesData } = await supabase
     .from("ouvertures")
     .select(
-      "id, order_index, longueur_po, longueur_totale_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_aux_deux_extremites, systeme, rideau_a_remplacer, hauteur_support_simple_po, hauteur_support_haut_po, hauteur_support_bas_po, modele_polymat, nb_cellules_simple, nb_cellules_haut, nb_cellules_bas",
+      "id, order_index, longueur_po, longueur_totale_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_count_haut, souffleurs_count_bas, souffleurs_aux_deux_extremites, systeme, rideau_a_remplacer, hauteur_support_simple_po, hauteur_support_haut_po, hauteur_support_bas_po, modele_polymat, nb_cellules_simple, nb_cellules_haut, nb_cellules_bas",
     )
     .eq("soumission_id", id)
     .order("order_index");

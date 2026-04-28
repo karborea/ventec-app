@@ -183,7 +183,10 @@ export function SoumissionReadonly({
             </div>
 
             {isRemplacement ? (
-              <RemplacementOuvertureFields op={op} />
+              <RemplacementOuvertureFields
+                op={op}
+                manufacturier={soumission.manufacturier_origine}
+              />
             ) : (
               <NouvelleOuvertureFields op={op} />
             )}
@@ -225,14 +228,18 @@ function NouvelleOuvertureFields({ op }: { op: OuvertureRow }) {
           value={op.rideau_grandeur ? GRANDEUR_LABELS[op.rideau_grandeur] : "—"}
         />
       )}
-      {op.rideau_type === "double" && op.rideau_grandeur === "standard" && (
-        <Field
-          label="Longueur de l'ouverture totale"
-          value={
-            op.longueur_totale_po !== null ? `${op.longueur_totale_po} po` : "—"
-          }
-        />
-      )}
+      {op.rideau_type === "double" &&
+        (op.rideau_grandeur === "standard" ||
+          op.rideau_grandeur === "hors_standard") && (
+          <Field
+            label="Hauteur de l'ouverture totale"
+            value={
+              op.longueur_totale_po !== null
+                ? `${op.longueur_totale_po} po`
+                : "—"
+            }
+          />
+        )}
       {op.rideau_type === "simple" ? (
         <Field
           label="Hauteur du polymat"
@@ -242,7 +249,8 @@ function NouvelleOuvertureFields({ op }: { op: OuvertureRow }) {
               : "—"
           }
         />
-      ) : op.rideau_type === "double" ? (
+      ) : op.rideau_type === "double" &&
+        op.rideau_grandeur === "hors_standard" ? (
         <>
           <Field
             label="Hauteur polymat du haut"
@@ -274,7 +282,13 @@ function NouvelleOuvertureFields({ op }: { op: OuvertureRow }) {
   );
 }
 
-function RemplacementOuvertureFields({ op }: { op: OuvertureRow }) {
+function RemplacementOuvertureFields({
+  op,
+  manufacturier,
+}: {
+  op: OuvertureRow;
+  manufacturier: "ventec" | "autre" | null;
+}) {
   const isDouble = op.systeme === "double";
   return (
     <dl className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-[14px]">
@@ -292,12 +306,14 @@ function RemplacementOuvertureFields({ op }: { op: OuvertureRow }) {
           }
         />
       )}
-      <Field
-        label="Modèle Polymat"
-        value={
-          op.modele_polymat ? MODELE_POLYMAT_LABELS[op.modele_polymat] : "—"
-        }
-      />
+      {manufacturier === "ventec" && (
+        <Field
+          label="Modèle Polymat"
+          value={
+            op.modele_polymat ? MODELE_POLYMAT_LABELS[op.modele_polymat] : "—"
+          }
+        />
+      )}
       <Field
         label="Longueur de l'ouverture"
         value={op.longueur_po !== null ? `${op.longueur_po} po` : "—"}
@@ -354,10 +370,33 @@ function RemplacementOuvertureFields({ op }: { op: OuvertureRow }) {
           />
         </>
       )}
-      <Field
-        label="Nombre de souffleurs"
-        value={op.souffleurs_count !== null ? String(op.souffleurs_count) : "—"}
-      />
+      {isDouble ? (
+        <>
+          <Field
+            label="Soufflerie du haut"
+            value={
+              op.souffleurs_count_haut !== null
+                ? String(op.souffleurs_count_haut)
+                : "—"
+            }
+          />
+          <Field
+            label="Soufflerie du bas"
+            value={
+              op.souffleurs_count_bas !== null
+                ? String(op.souffleurs_count_bas)
+                : "—"
+            }
+          />
+        </>
+      ) : (
+        <Field
+          label="Nombre de souffleurs"
+          value={
+            op.souffleurs_count !== null ? String(op.souffleurs_count) : "—"
+          }
+        />
+      )}
       <Field
         label="Souffleries aux deux extrémités"
         value={op.souffleurs_aux_deux_extremites ? "Oui" : "Non"}

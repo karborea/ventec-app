@@ -1,15 +1,15 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import type { SoumissionFormState } from "@/app/actions/soumissions";
 import {
   KIT_EXTREMITE_PO,
   longueurTotale,
   getSouffleursChoice,
-  SOUFFLEURS_TABLE_MIN_PO,
-  SOUFFLEURS_TABLE_MAX_PO,
+  SOUFFLEURS_RANGE,
   validateHauteurForRideau,
 } from "@/lib/soumissions/rules";
+import { HauteurIcon, LongueurIcon } from "@/components/measurement-icons";
 import { OpeningSchema } from "./opening-schema";
 import { MeasurementGuideButton } from "./measurement-guide-button";
 
@@ -33,6 +33,9 @@ function formatFeetInches(po: number): string {
 }
 
 export type OpeningDraft = {
+  /** Pieds — partie entière de la longueur. */
+  longueur_pi: string;
+  /** Pouces résiduels (0–11). Combiné avec longueur_pi pour total en po. */
   longueur_po: string;
   longueur_totale_po: string;
   materiau_haut: Materiau;
@@ -72,6 +75,7 @@ const MATERIAU_LABELS: Record<Materiau, string> = {
 
 function emptyOpening(): OpeningDraft {
   return {
+    longueur_pi: "",
     longueur_po: "",
     longueur_totale_po: "",
     materiau_haut: "bois",
@@ -112,23 +116,52 @@ export function NouvelleCommandeForm({
 
   const active = openings[activeIndex];
 
-  // Derived values for the active opening
-  const longueurPo = parseNum(active.longueur_po);
+  // Derived values for the active opening — longueur totale (po) =
+  // pieds × 12 + pouces résiduels.
+  const longueurPiNum = parseNum(active.longueur_pi);
+  const longueurPoReste = parseNum(active.longueur_po);
+  const longueurPo =
+    longueurPiNum !== null || longueurPoReste !== null
+      ? (longueurPiNum ?? 0) * 12 + (longueurPoReste ?? 0)
+      : null;
+  // Hauteur de référence (utilisée pour le calcul des souffleurs).
+  // - Simple        → hauteur du polymat unique
+  // - Double standard → hauteur de l'ouverture totale (longueur_totale_po)
+  // - Double hors-standard → somme des hauteurs polymat haut + bas
   const hauteurPo =
     active.rideau_type === "simple"
       ? parseNum(active.polymat_unique_hauteur_po)
-      : (parseNum(active.polymat_haut_hauteur_po) ?? 0) +
-        (parseNum(active.polymat_bas_hauteur_po) ?? 0) || null;
-  const souffleursChoice = longueurPo ? getSouffleursChoice(longueurPo) : null;
+      : active.rideau_grandeur === "standard"
+        ? parseNum(active.longueur_totale_po)
+        : (parseNum(active.polymat_haut_hauteur_po) ?? 0) +
+            (parseNum(active.polymat_bas_hauteur_po) ?? 0) || null;
+  const souffleursChoice =
+    hauteurPo !== null
+      ? getSouffleursChoice(active.rideau_type, hauteurPo, longueurPo)
+      : null;
+  const souffleursRange = SOUFFLEURS_RANGE[active.rideau_type];
   const souffleursOutOfRange =
-    longueurPo !== null &&
+    hauteurPo !== null &&
     souffleursChoice === null &&
-    (longueurPo < SOUFFLEURS_TABLE_MIN_PO ||
-      longueurPo > SOUFFLEURS_TABLE_MAX_PO);
+    (hauteurPo < souffleursRange.minPo || hauteurPo > souffleursRange.maxPo);
   const hauteurValidation =
     hauteurPo !== null
       ? validateHauteurForRideau(active.rideau_type, hauteurPo)
       : { ok: true as const };
+
+  // Auto-check "aux 2 extrémités" when longueur crosses the threshold.
+  const recommendAuxDeuxExt =
+    souffleursChoice?.auxDeuxExtremitesRecommended ?? false;
+  useEffect(() => {
+    if (!recommendAuxDeuxExt) return;
+    setOpenings((prev) =>
+      prev.map((op, i) =>
+        i === activeIndex && !op.souffleurs_aux_deux_extremites
+          ? { ...op, souffleurs_aux_deux_extremites: true }
+          : op,
+      ),
+    );
+  }, [recommendAuxDeuxExt, activeIndex]);
 
   function updateActive(patch: Partial<OpeningDraft>) {
     setOpenings((prev) =>
@@ -161,7 +194,18 @@ export function NouvelleCommandeForm({
     () =>
       JSON.stringify({
         project_name: projectName,
-        openings,
+        openings: openings.map((op) => {
+          const pi = parseNum(op.longueur_pi);
+          const poReste = parseNum(op.longueur_po);
+          const total =
+            pi !== null || poReste !== null
+              ? (pi ?? 0) * 12 + (poReste ?? 0)
+              : null;
+          return {
+            ...op,
+            longueur_po: total !== null ? String(total) : "",
+          };
+        }),
       }),
     [projectName, openings],
   );
@@ -243,10 +287,14 @@ export function NouvelleCommandeForm({
 
             {/* Per-opening summary */}
             {openings.map((op, i) => {
-              const total =
-                op.longueur_po && Number.isFinite(Number(op.longueur_po))
-                  ? Number(op.longueur_po) + 48
+              const opPi = parseNum(op.longueur_pi);
+              const opPo = parseNum(op.longueur_po);
+              const opLongueurPo =
+                opPi !== null || opPo !== null
+                  ? (opPi ?? 0) * 12 + (opPo ?? 0)
                   : null;
+              const total =
+                opLongueurPo !== null ? opLongueurPo + 48 : null;
               const isActive = i === activeIndex;
               return (
                 <div
@@ -286,7 +334,9 @@ export function NouvelleCommandeForm({
                     <div className="flex justify-between gap-3">
                       <dt className="text-[#5a6278]">Longueur</dt>
                       <dd className="font-semibold">
-                        {formatInches(op.longueur_po)}
+                        {opLongueurPo !== null
+                          ? formatFeetInches(opLongueurPo)
+                          : "—"}
                       </dd>
                     </div>
                     <div className="flex justify-between gap-3">
@@ -312,9 +362,10 @@ export function NouvelleCommandeForm({
                       </div>
                     )}
                     {op.rideau_type === "double" &&
-                      op.rideau_grandeur === "standard" && (
+                      (op.rideau_grandeur === "standard" ||
+                        op.rideau_grandeur === "hors_standard") && (
                         <div className="flex justify-between gap-3">
-                          <dt className="text-[#5a6278]">Longueur totale</dt>
+                          <dt className="text-[#5a6278]">Hauteur totale</dt>
                           <dd className="font-semibold">
                             {op.longueur_totale_po
                               ? `${op.longueur_totale_po} po`
@@ -329,7 +380,7 @@ export function NouvelleCommandeForm({
                           {formatInches(op.polymat_unique_hauteur_po)}
                         </dd>
                       </div>
-                    ) : (
+                    ) : op.rideau_grandeur === "hors_standard" ? (
                       <>
                         <div className="flex justify-between gap-3">
                           <dt className="text-[#5a6278]">Polymat haut</dt>
@@ -344,10 +395,10 @@ export function NouvelleCommandeForm({
                           </dd>
                         </div>
                       </>
-                    )}
+                    ) : null}
                     <div className="flex justify-between gap-3">
                       <dt className="text-[#5a6278]">Souffleurs</dt>
-                      <dd className="font-semibold">
+                      <dd className="font-semibold text-right">
                         {op.souffleurs_count || "—"}
                         {op.souffleurs_aux_deux_extremites && (
                           <span className="ml-1.5 text-[11px] font-normal text-[#5a6278]">
@@ -418,30 +469,47 @@ export function NouvelleCommandeForm({
             {/* Longueur */}
             <section>
               <h3 className="text-[15px] font-bold mb-1 flex items-center gap-2">
+                <LongueurIcon className="text-[#f37021] shrink-0" />
                 2. Longueur de l&apos;ouverture
                 <MeasurementGuideButton compact />
               </h3>
               <p className="text-sm text-[#5a6278] mb-3">
-                Largeur en pouces. Le kit d&apos;extrémité est ajouté
-                automatiquement.
+                Saisissez la longueur en pieds et pouces. Le kit
+                d&apos;extrémité est ajouté automatiquement.
               </p>
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="max-w-[220px] relative flex-1">
+                <div className="relative w-[140px]">
                   <input
                     type="number"
                     min={0}
+                    value={active.longueur_pi}
+                    onChange={(e) =>
+                      updateActive({ longueur_pi: e.target.value })
+                    }
+                    placeholder="100"
+                    className="w-full min-h-12 px-3.5 pr-12 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                    pi
+                  </span>
+                </div>
+                <div className="relative w-[140px]">
+                  <input
+                    type="number"
+                    min={0}
+                    max={11}
                     value={active.longueur_po}
                     onChange={(e) =>
                       updateActive({ longueur_po: e.target.value })
                     }
-                    placeholder="1206"
-                    className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                    placeholder="6"
+                    className="w-full min-h-12 px-3.5 pr-12 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
                     po
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-[13px] text-[#5a6278]">
+                <div className="flex items-center gap-2 text-[13px] text-[#5a6278] flex-wrap">
                   <span>+</span>
                   <span className="bg-[#eef1f5] px-2.5 py-1.5 rounded-md font-mono">
                     {KIT_EXTREMITE_PO} po
@@ -449,23 +517,11 @@ export function NouvelleCommandeForm({
                   <span>kit d&apos;extrémité =</span>
                   <span className="bg-[#f0f7fb] px-2.5 py-1.5 rounded-md font-mono font-semibold text-[#0f7bb5]">
                     {longueurPo !== null
-                      ? `${longueurTotale(longueurPo)} po total`
-                      : "— po total"}
+                      ? formatFeetInches(longueurTotale(longueurPo))
+                      : "— pi — po"}
                   </span>
                 </div>
               </div>
-              {longueurPo !== null && (
-                <p className="mt-2 text-xs text-[#5a6278]">
-                  Soit{" "}
-                  <span className="font-semibold text-[#1a1f2e]">
-                    {formatFeetInches(longueurPo)}
-                  </span>{" "}
-                  (ouverture) · Longueur totale{" "}
-                  <span className="font-semibold text-[#1a1f2e]">
-                    {formatFeetInches(longueurTotale(longueurPo))}
-                  </span>
-                </p>
-              )}
             </section>
 
             {/* Matériaux */}
@@ -552,7 +608,7 @@ export function NouvelleCommandeForm({
                 >
                   <div className="font-bold text-[15px]">Rideau simple</div>
                   <div className="text-xs text-[#5a6278] mt-0.5">
-                    Hauteur 36 à 126 po · 1 polymat
+                    Hauteur 32 à 124 po · 1 polymat
                   </div>
                 </button>
                 <button
@@ -566,7 +622,7 @@ export function NouvelleCommandeForm({
                 >
                   <div className="font-bold text-[15px]">Rideau double</div>
                   <div className="text-xs text-[#5a6278] mt-0.5">
-                    Hauteur 96 à 168 po · 2 polymats empilés
+                    Hauteur 92 à 185 po · 2 polymats empilés
                   </div>
                 </button>
               </div>
@@ -617,20 +673,21 @@ export function NouvelleCommandeForm({
                     </button>
                   </div>
 
-                  {/* Additional dimension required for Standard double curtains */}
-                  {active.rideau_grandeur === "standard" && (
+                  {/* Additional dimension for Standard or Hors-standard double curtains */}
+                  {(active.rideau_grandeur === "standard" ||
+                    active.rideau_grandeur === "hors_standard") && (
                     <div className="mt-4 pt-4 border-t border-dashed border-[#e3e6ec]">
                       <label
                         htmlFor="longueur-totale"
                         className="block text-sm font-semibold mb-1 flex items-center gap-2"
                       >
-                        Longueur de l&apos;ouverture totale{" "}
+                        <HauteurIcon className="text-[#1b9ae0] shrink-0" />
+                        Hauteur de l&apos;ouverture totale{" "}
                         <span className="text-[#f37021]">*</span>
                         <MeasurementGuideButton compact />
                       </label>
                       <p className="text-xs text-[#5a6278] mb-2.5">
-                        Requis pour un rideau double standard. Indiquez la
-                        longueur totale à couvrir, en pouces.
+                        Indiquez la hauteur totale à couvrir, en pouces.
                       </p>
                       <div className="max-w-[260px] relative">
                         <input
@@ -656,11 +713,15 @@ export function NouvelleCommandeForm({
               )}
             </section>
 
-            {/* Hauteurs */}
+            {/* Hauteurs — masqué en rideau double STANDARD car Ventec a
+                déjà la répartition haut/bas pré-déterminée à l'interne.
+                La hauteur totale (étape 4) est utilisée comme hauteur de
+                référence pour le calcul des souffleurs. */}
+            {!(active.rideau_type === "double" && active.rideau_grandeur === "standard") && (
             <section>
               <h3 className="text-[15px] font-bold mb-1 flex items-center gap-2">
-                5. Hauteur{active.rideau_type === "double" ? "s" : ""} des
-                polymats
+                <HauteurIcon className="text-[#1b9ae0] shrink-0" />
+                5. Hauteur des polymat
                 <MeasurementGuideButton compact />
               </h3>
               <p className="text-sm text-[#5a6278] mb-3">
@@ -765,14 +826,15 @@ export function NouvelleCommandeForm({
                     </div>
                   </div>
 
-                  {hauteurPo !== null && (
-                    <div className="text-xs text-[#5a6278] px-1">
-                      Hauteur totale des deux polymats :{" "}
-                      <span className="font-mono font-semibold text-[#1a1f2e]">
-                        {hauteurPo} po
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 flex-wrap text-[13px]">
+                    <HauteurIcon className="text-[#1b9ae0] shrink-0" />
+                    <span className="text-[#5a6278]">
+                      Hauteur de l&apos;ouverture totale =
+                    </span>
+                    <span className="bg-[#f0f7fb] text-[#0f7bb5] px-2.5 py-1.5 rounded-md font-mono font-semibold">
+                      {hauteurPo !== null ? `${hauteurPo} po` : "— po"}
+                    </span>
+                  </div>
 
                   {!hauteurValidation.ok && (
                     <div className="rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
@@ -799,27 +861,30 @@ export function NouvelleCommandeForm({
                 </div>
               )}
             </section>
+            )}
 
             {/* Souffleurs */}
             <section>
               <h3 className="text-[15px] font-bold mb-1">6. Souffleurs</h3>
               <p className="text-sm text-[#5a6278] mb-3">
-                Les choix disponibles dépendent de la longueur de
-                l&apos;ouverture (étape 2).
+                Le nombre de souffleurs dépend de la hauteur du rideau.
+                L&apos;option aux deux extrémités se propose automatiquement
+                selon la longueur.
               </p>
 
-              {longueurPo === null ? (
+              {hauteurPo === null ? (
                 <div className="rounded-lg border border-dashed border-[#c9d1dc] bg-[#fafbfc] px-4 py-3 text-[13px] text-[#5a6278]">
-                  Entrez d&apos;abord la longueur de l&apos;ouverture à
-                  l&apos;étape 2 pour voir les options disponibles.
+                  Entrez d&apos;abord la hauteur du polymat (étape 5) pour voir
+                  les options disponibles.
                 </div>
               ) : souffleursOutOfRange ? (
                 <div className="rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
                   <span aria-hidden>⚠</span>
                   <div>
-                    Longueur hors des plages standards ({SOUFFLEURS_TABLE_MIN_PO}
-                    –{SOUFFLEURS_TABLE_MAX_PO} po). Ventec vous contactera pour
-                    préciser le nombre de souffleurs après soumission.
+                    Hauteur hors plage standard pour un rideau{" "}
+                    {active.rideau_type} ({souffleursRange.minPo}–
+                    {souffleursRange.maxPo} po). Ventec vous contactera pour
+                    préciser le nombre de souffleurs.
                   </div>
                 </div>
               ) : souffleursChoice ? (
@@ -833,7 +898,7 @@ export function NouvelleCommandeForm({
                       className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
                     >
                       <option value="">— Sélectionner —</option>
-                      {souffleursChoice.options.map((n) => (
+                      {souffleursChoice.baseOptions.map((n) => (
                         <option key={n} value={String(n)}>
                           {n} souffleur{n > 1 ? "s" : ""}
                         </option>
@@ -845,12 +910,11 @@ export function NouvelleCommandeForm({
                   </div>
                 </div>
               ) : (
-                // Longueur in the 125 ft gap between table rows
                 <div className="rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
                   <span aria-hidden>⚠</span>
                   <div>
-                    Longueur non couverte par la table standard. Ventec
-                    vous contactera pour préciser.
+                    Hauteur non couverte par la table standard. Ventec vous
+                    contactera pour préciser.
                   </div>
                 </div>
               )}
@@ -866,13 +930,21 @@ export function NouvelleCommandeForm({
                   }
                   className="w-5 h-5 mt-0.5 accent-[#1b9ae0] shrink-0 cursor-pointer"
                 />
-                <div>
-                  <div className="font-semibold text-[14px]">
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-[14px] flex items-center gap-2 flex-wrap">
                     Souffleries aux deux extrémités
+                    {recommendAuxDeuxExt && (
+                      <span className="inline-flex items-center gap-1 bg-[#e8f5ee] text-[#1f7a3a] px-1.5 py-0.5 rounded text-[11px] font-semibold">
+                        ⚡ Recommandé
+                      </span>
+                    )}
                   </div>
                   <div className="text-[13px] text-[#5a6278]">
-                    Cochez si des souffleurs sont installés à gauche ET à
-                    droite de l&apos;ouverture.
+                    {souffleursChoice && longueurPo !== null && longueurPo >= souffleursChoice.doubleThresholdPo
+                      ? `Longueur ${Math.round(longueurPo / 12)}′ ≥ seuil ${souffleursChoice.doubleThresholdFt}′. Souffleries des 2 côtés recommandées.`
+                      : souffleursChoice
+                        ? `Seuil : longueur ≥ ${souffleursChoice.doubleThresholdFt}′.`
+                        : "Cochez si des souffleurs sont installés à gauche ET à droite."}
                   </div>
                 </div>
               </label>

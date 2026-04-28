@@ -3,13 +3,12 @@
 import { useActionState, useMemo, useState } from "react";
 import type { SoumissionFormState } from "@/app/actions/soumissions";
 import {
-  getCellsForHauteur,
-  getSouffleursChoice,
-  SOUFFLEURS_TABLE_MIN_PO,
-  SOUFFLEURS_TABLE_MAX_PO,
+  getCellsForHauteurSimple,
+  getCellsForHauteurDouble,
   MODELES_POLYMAT,
   type ModelePolymat,
 } from "@/lib/soumissions/rules";
+import { HauteurIcon, LongueurIcon } from "@/components/measurement-icons";
 import { PolymatDrawing } from "./polymat-drawing";
 
 type ManufacturierOrigine = "ventec" | "autre";
@@ -38,11 +37,18 @@ export type RemplacementOpeningDraft = {
   hauteur_support_haut_po: string;
   hauteur_support_bas_po: string;
   modele_polymat: ModelePolymat | "";
-  longueur_po: string;
+  /** Longueur du polymat saisie en pieds. Convertie en pouces avant
+   * envoi au server (x12). */
+  longueur_pi: string;
   nb_cellules_simple: string;
   nb_cellules_haut: string;
   nb_cellules_bas: string;
+  /** Systeme simple : nombre total de souffleurs (1–4). */
   souffleurs_count: string;
+  /** Systeme double : souffleurs côté haut (1–4). */
+  souffleurs_count_haut: string;
+  /** Systeme double : souffleurs côté bas (1–4). */
+  souffleurs_count_bas: string;
   souffleurs_aux_deux_extremites: boolean;
 };
 
@@ -67,11 +73,13 @@ function emptyOpening(): RemplacementOpeningDraft {
     hauteur_support_haut_po: "",
     hauteur_support_bas_po: "",
     modele_polymat: "",
-    longueur_po: "",
+    longueur_pi: "",
     nb_cellules_simple: "",
     nb_cellules_haut: "",
     nb_cellules_bas: "",
     souffleurs_count: "",
+    souffleurs_count_haut: "",
+    souffleurs_count_bas: "",
     souffleurs_aux_deux_extremites: false,
   };
 }
@@ -116,23 +124,26 @@ export function RemplacementForm({
 
   const active = openings[activeIndex];
 
-  const longueurPo = parseNum(active.longueur_po);
-  const souffleursChoice = longueurPo ? getSouffleursChoice(longueurPo) : null;
-  const souffleursOutOfRange =
-    longueurPo !== null &&
-    souffleursChoice === null &&
-    (longueurPo < SOUFFLEURS_TABLE_MIN_PO ||
-      longueurPo > SOUFFLEURS_TABLE_MAX_PO);
+  // Saisie en pieds, convertie en pouces pour le reste de la logique (DB).
+  const longueurPi = parseNum(active.longueur_pi);
+  const longueurPo = longueurPi !== null ? longueurPi * 12 : null;
 
   const hauteurSimplePo = parseNum(active.hauteur_support_simple_po);
   const hauteurHautPo = parseNum(active.hauteur_support_haut_po);
   const hauteurBasPo = parseNum(active.hauteur_support_bas_po);
   const cellsSimpleRec =
-    hauteurSimplePo !== null ? getCellsForHauteur(hauteurSimplePo) : null;
-  const cellsHautRec =
-    hauteurHautPo !== null ? getCellsForHauteur(hauteurHautPo) : null;
-  const cellsBasRec =
-    hauteurBasPo !== null ? getCellsForHauteur(hauteurBasPo) : null;
+    hauteurSimplePo !== null ? getCellsForHauteurSimple(hauteurSimplePo) : null;
+  // Double : somme haut+bas → lookup unique → { haut, bas }
+  const hauteurDoubleTotalePo =
+    hauteurHautPo !== null && hauteurBasPo !== null
+      ? hauteurHautPo + hauteurBasPo
+      : null;
+  const cellsDoubleRec =
+    hauteurDoubleTotalePo !== null
+      ? getCellsForHauteurDouble(hauteurDoubleTotalePo)
+      : null;
+  const cellsHautRec = cellsDoubleRec?.haut ?? null;
+  const cellsBasRec = cellsDoubleRec?.bas ?? null;
 
   function updateActive(patch: Partial<RemplacementOpeningDraft>) {
     setOpenings((prev) =>
@@ -166,17 +177,43 @@ export function RemplacementForm({
       JSON.stringify({
         project_name: projectName,
         manufacturier_origine: manufacturier,
-        openings,
+        // Convertit longueur_pi (pieds) en longueur_po (pouces) avant envoi.
+        openings: openings.map((op) => {
+          const pi = parseNum(op.longueur_pi);
+          return {
+            ...op,
+            longueur_po: pi !== null ? String(pi * 12) : "",
+          };
+        }),
       }),
     [projectName, manufacturier, openings],
   );
 
+  // Choix de souffleurs : 1–4 pour Ventec, 1–8 pour autre manufacturier.
+  const souffleurOptions =
+    manufacturier === "autre"
+      ? [1, 2, 3, 4, 5, 6, 7, 8]
+      : [1, 2, 3, 4];
+
   const isDouble = active.systeme === "double";
-  const needsHautHeight =
-    !isDouble ||
-    active.rideau_a_remplacer === "haut" ||
-    active.rideau_a_remplacer === "les_deux";
-  const needsBasHeight =
+  // En remplacement avec autre manufacturier + rideau simple, on met la
+  // hauteur (3) et la longueur (5) côte à côte (2 colonnes). La section 4
+  // étant masquée pour autre, le grid contient juste 3 et 5.
+  const sideBySideHauteurLongueur =
+    !isDouble && manufacturier === "autre";
+  // Pour systeme double, les deux hauteurs sont requises (somme utilisée
+  // pour calcul cellules + souffleurs). Si l'utilisateur ne remplace qu'un
+  // côté, l'autre hauteur reste informative mais nécessaire.
+  const hautOnlyInformative =
+    isDouble && active.rideau_a_remplacer === "bas";
+  const basOnlyInformative =
+    isDouble && active.rideau_a_remplacer === "haut";
+  // Cellules : uniquement saisies pour les côtés effectivement remplacés.
+  const replaceHaut =
+    isDouble &&
+    (active.rideau_a_remplacer === "haut" ||
+      active.rideau_a_remplacer === "les_deux");
+  const replaceBas =
     isDouble &&
     (active.rideau_a_remplacer === "bas" ||
       active.rideau_a_remplacer === "les_deux");
@@ -299,20 +336,22 @@ export function RemplacementForm({
                         </dd>
                       </div>
                     )}
+                    {manufacturier === "ventec" && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-[#5a6278]">Modèle</dt>
+                        <dd className="font-semibold">
+                          {op.modele_polymat
+                            ? MODELES_POLYMAT.find(
+                                (m) => m.value === op.modele_polymat,
+                              )?.label
+                            : "—"}
+                        </dd>
+                      </div>
+                    )}
                     <div className="flex justify-between gap-3">
-                      <dt className="text-[#5a6278]">Modèle</dt>
+                      <dt className="text-[#5a6278]">Longueur polymat</dt>
                       <dd className="font-semibold">
-                        {op.modele_polymat
-                          ? MODELES_POLYMAT.find(
-                              (m) => m.value === op.modele_polymat,
-                            )?.label
-                          : "—"}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-[#5a6278]">Longueur</dt>
-                      <dd className="font-semibold">
-                        {formatInches(op.longueur_po)}
+                        {op.longueur_pi ? `${op.longueur_pi} pi` : "—"}
                       </dd>
                     </div>
                     {op.systeme === "simple" ? (
@@ -358,17 +397,39 @@ export function RemplacementForm({
                         </div>
                       </>
                     )}
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-[#5a6278]">Souffleurs</dt>
-                      <dd className="font-semibold">
-                        {op.souffleurs_count || "—"}
-                        {op.souffleurs_aux_deux_extremites && (
-                          <span className="ml-1.5 text-[11px] font-normal text-[#5a6278]">
-                            · 2 extrémités
-                          </span>
-                        )}
-                      </dd>
-                    </div>
+                    {op.systeme === "simple" ? (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-[#5a6278]">Souffleurs</dt>
+                        <dd className="font-semibold">
+                          {op.souffleurs_count || "—"}
+                          {op.souffleurs_aux_deux_extremites && (
+                            <span className="ml-1.5 text-[11px] font-normal text-[#5a6278]">
+                              · 2 extrémités
+                            </span>
+                          )}
+                        </dd>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-[#5a6278]">Soufflerie haut</dt>
+                          <dd className="font-semibold">
+                            {op.souffleurs_count_haut || "—"}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-[#5a6278]">Soufflerie bas</dt>
+                          <dd className="font-semibold">
+                            {op.souffleurs_count_bas || "—"}
+                            {op.souffleurs_aux_deux_extremites && (
+                              <span className="ml-1.5 text-[11px] font-normal text-[#5a6278]">
+                                · 2 extrémités
+                              </span>
+                            )}
+                          </dd>
+                        </div>
+                      </>
+                    )}
                   </dl>
                 </div>
               );
@@ -534,9 +595,18 @@ export function RemplacementForm({
                 )}
               </section>
 
+              {/* Sections 3, 4, 5 — en 2 colonnes si simple + autre manufacturier */}
+              <div
+                className={
+                  sideBySideHauteurLongueur
+                    ? "grid grid-cols-1 sm:grid-cols-2 gap-8 items-start"
+                    : "space-y-8"
+                }
+              >
               {/* Hauteur du support */}
               <section>
-                <h3 className="text-[15px] font-bold mb-1">
+                <h3 className="text-[15px] font-bold mb-1 flex items-center gap-2">
+                  <HauteurIcon className="text-[#1b9ae0] shrink-0" />
                   3. Hauteur du support
                 </h3>
                 <p className="text-sm text-[#5a6278] mb-3">
@@ -567,17 +637,16 @@ export function RemplacementForm({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div
-                      className={`border-[1.5px] rounded-xl p-4 ${
-                        needsHautHeight
-                          ? "border-[#e3e6ec] bg-[#fafbfc]"
-                          : "border-dashed border-[#e3e6ec] bg-white opacity-60"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 mb-3">
+                    <div className="border-[1.5px] rounded-xl p-4 border-[#e3e6ec] bg-[#fafbfc]">
+                      <div className="flex items-center gap-2.5 mb-3 flex-wrap">
                         <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
                           Support haut
                         </span>
+                        {hautOnlyInformative && (
+                          <span className="bg-[#f4f5f8] text-[#5a6278] text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                            informatif
+                          </span>
+                        )}
                       </div>
                       <div className="relative">
                         <input
@@ -589,26 +658,29 @@ export function RemplacementForm({
                               hauteur_support_haut_po: e.target.value,
                             })
                           }
-                          disabled={!needsHautHeight}
                           placeholder="72"
-                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20 disabled:bg-[#f5f6f8]"
+                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
                         />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
                           po
                         </span>
                       </div>
+                      {hautOnlyInformative && (
+                        <p className="mt-2 text-[12px] text-[#5a6278]">
+                          Requis pour le calcul des cellules et souffleurs.
+                        </p>
+                      )}
                     </div>
-                    <div
-                      className={`border-[1.5px] rounded-xl p-4 ${
-                        needsBasHeight
-                          ? "border-[#e3e6ec] bg-[#fafbfc]"
-                          : "border-dashed border-[#e3e6ec] bg-white opacity-60"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 mb-3">
+                    <div className="border-[1.5px] rounded-xl p-4 border-[#e3e6ec] bg-[#fafbfc]">
+                      <div className="flex items-center gap-2.5 mb-3 flex-wrap">
                         <span className="bg-[#1a1f2e] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
                           Support bas
                         </span>
+                        {basOnlyInformative && (
+                          <span className="bg-[#f4f5f8] text-[#5a6278] text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                            informatif
+                          </span>
+                        )}
                       </div>
                       <div className="relative">
                         <input
@@ -620,112 +692,113 @@ export function RemplacementForm({
                               hauteur_support_bas_po: e.target.value,
                             })
                           }
-                          disabled={!needsBasHeight}
                           placeholder="60"
-                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20 disabled:bg-[#f5f6f8]"
+                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
                         />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
                           po
                         </span>
                       </div>
+                      {basOnlyInformative && (
+                        <p className="mt-2 text-[12px] text-[#5a6278]">
+                          Requis pour le calcul des cellules et souffleurs.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
               </section>
 
-              {/* Modèle Polymat */}
-              <section>
-                <h3 className="text-[15px] font-bold mb-1">
-                  4. Modèle Polymat
-                </h3>
-                <p className="text-sm text-[#5a6278] mb-3">
-                  Sélectionnez le modèle du système existant.
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {MODELES_POLYMAT.filter((m) => m.value !== "autre").map(
-                    (opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() =>
-                          updateActive({ modele_polymat: opt.value })
-                        }
-                        className={`border-[1.5px] rounded-lg p-3 flex flex-col items-center gap-2 transition-all ${
-                          active.modele_polymat === opt.value
-                            ? "border-[#1b9ae0] bg-[#1b9ae0]/[0.06] ring-1 ring-inset ring-[#1b9ae0]"
-                            : "border-[#e3e6ec] bg-white hover:border-[#1b9ae0]"
-                        }`}
-                      >
-                        <PolymatDrawing
-                          systeme="double"
-                          className="h-20 w-auto"
-                        />
-                        <span className="text-[13px] font-semibold">
-                          {opt.label}
-                        </span>
-                      </button>
-                    ),
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => updateActive({ modele_polymat: "autre" })}
-                  className={`mt-2 w-full border-[1.5px] rounded-lg px-4 py-3 flex items-center gap-3 text-left transition-all ${
-                    active.modele_polymat === "autre"
-                      ? "border-[#1b9ae0] bg-[#1b9ae0]/[0.06] ring-1 ring-inset ring-[#1b9ae0]"
-                      : "border-dashed border-[#c9d1dc] bg-white hover:border-[#1b9ae0]"
-                  }`}
-                >
-                  <span
-                    className="w-8 h-8 rounded-full bg-[#eef1f5] text-[#5a6278] flex items-center justify-center text-lg font-bold shrink-0"
-                    aria-hidden
+              {/* Modèle Polymat — uniquement si manufacturier = Ventec */}
+              {manufacturier === "ventec" && (
+                <section>
+                  <h3 className="text-[15px] font-bold mb-1">
+                    4. Modèle Polymat
+                  </h3>
+                  <p className="text-sm text-[#5a6278] mb-3">
+                    Sélectionnez le modèle du système existant.
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {MODELES_POLYMAT.filter((m) => m.value !== "autre").map(
+                      (opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() =>
+                            updateActive({ modele_polymat: opt.value })
+                          }
+                          className={`border-[1.5px] rounded-lg p-3 flex flex-col items-center gap-2 transition-all ${
+                            active.modele_polymat === opt.value
+                              ? "border-[#1b9ae0] bg-[#1b9ae0]/[0.06] ring-1 ring-inset ring-[#1b9ae0]"
+                              : "border-[#e3e6ec] bg-white hover:border-[#1b9ae0]"
+                          }`}
+                        >
+                          <PolymatDrawing
+                            systeme="double"
+                            className="h-20 w-auto"
+                          />
+                          <span className="text-[13px] font-semibold">
+                            {opt.label}
+                          </span>
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateActive({ modele_polymat: "autre" })}
+                    className={`mt-2 w-full border-[1.5px] rounded-lg px-4 py-3 flex items-center gap-3 text-left transition-all ${
+                      active.modele_polymat === "autre"
+                        ? "border-[#1b9ae0] bg-[#1b9ae0]/[0.06] ring-1 ring-inset ring-[#1b9ae0]"
+                        : "border-dashed border-[#c9d1dc] bg-white hover:border-[#1b9ae0]"
+                    }`}
                   >
-                    ?
-                  </span>
-                  <span className="flex-1">
-                    <span className="block text-[13px] font-semibold">
-                      Autre modèle
+                    <span
+                      className="w-8 h-8 rounded-full bg-[#eef1f5] text-[#5a6278] flex items-center justify-center text-lg font-bold shrink-0"
+                      aria-hidden
+                    >
+                      ?
                     </span>
-                    <span className="block text-xs text-[#5a6278] mt-0.5">
-                      Modèle non listé ci-dessus. Ventec vous contactera pour
-                      préciser.
+                    <span className="flex-1">
+                      <span className="block text-[13px] font-semibold">
+                        Autre modèle
+                      </span>
+                      <span className="block text-xs text-[#5a6278] mt-0.5">
+                        Modèle non listé ci-dessus. Ventec vous contactera pour
+                        préciser.
+                      </span>
                     </span>
-                  </span>
-                </button>
-              </section>
+                  </button>
+                </section>
+              )}
 
-              {/* Longueur */}
+              {/* Longueur du polymat */}
               <section>
-                <h3 className="text-[15px] font-bold mb-1">
-                  5. Longueur de l&apos;ouverture
+                <h3 className="text-[15px] font-bold mb-1 flex items-center gap-2">
+                  <LongueurIcon className="text-[#f37021] shrink-0" />
+                  5. Longueur du polymat
                 </h3>
                 <p className="text-sm text-[#5a6278] mb-3">
-                  Largeur de l&apos;ouverture en pouces.
+                  Longueur du polymat en pieds.
                 </p>
                 <div className="max-w-[260px] relative">
                   <input
                     type="number"
                     min={0}
-                    value={active.longueur_po}
+                    step={1}
+                    value={active.longueur_pi}
                     onChange={(e) =>
-                      updateActive({ longueur_po: e.target.value })
+                      updateActive({ longueur_pi: e.target.value })
                     }
-                    placeholder="1206"
+                    placeholder="100"
                     className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
-                    po
+                    pi
                   </span>
                 </div>
-                {longueurPo !== null && (
-                  <p className="mt-2 text-xs text-[#5a6278]">
-                    Soit{" "}
-                    <span className="font-semibold text-[#1a1f2e]">
-                      {formatFeetInches(longueurPo)}
-                    </span>
-                  </p>
-                )}
               </section>
+              </div>
 
               {/* Nombre de cellules */}
               <section>
@@ -774,7 +847,7 @@ export function RemplacementForm({
                     <CellsInputCard
                       tone="haut"
                       hauteurPo={hauteurHautPo}
-                      active={needsHautHeight}
+                      active={replaceHaut}
                       value={active.nb_cellules_haut}
                       recommendation={cellsHautRec}
                       onChange={(v) => updateActive({ nb_cellules_haut: v })}
@@ -782,7 +855,7 @@ export function RemplacementForm({
                     <CellsInputCard
                       tone="bas"
                       hauteurPo={hauteurBasPo}
-                      active={needsBasHeight}
+                      active={replaceBas}
                       value={active.nb_cellules_bas}
                       recommendation={cellsBasRec}
                       onChange={(v) => updateActive({ nb_cellules_bas: v })}
@@ -795,48 +868,76 @@ export function RemplacementForm({
               <section>
                 <h3 className="text-[15px] font-bold mb-1">7. Souffleurs</h3>
                 <p className="text-sm text-[#5a6278] mb-3">
-                  Choix disponibles selon la longueur.
+                  {active.systeme === "double"
+                    ? "Sélectionnez le nombre de souffleurs pour chaque côté (haut et bas)."
+                    : "Sélectionnez le nombre de souffleurs."}
                 </p>
 
-                {longueurPo === null ? (
-                  <div className="rounded-lg border border-dashed border-[#c9d1dc] bg-[#fafbfc] px-4 py-3 text-[13px] text-[#5a6278]">
-                    Entrez d&apos;abord la longueur à l&apos;étape 5.
+                {active.systeme === "simple" ? (
+                  <div className="max-w-[240px]">
+                    <select
+                      value={active.souffleurs_count}
+                      onChange={(e) =>
+                        updateActive({ souffleurs_count: e.target.value })
+                      }
+                      className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                    >
+                      <option value="">— Sélectionner —</option>
+                      {souffleurOptions.map((n) => (
+                        <option key={n} value={String(n)}>
+                          {n} souffleur{n > 1 ? "s" : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                ) : souffleursOutOfRange ? (
-                  <div className="rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00] flex items-start gap-2.5">
-                    <span aria-hidden>⚠</span>
-                    <div>
-                      Longueur hors des plages standards (
-                      {SOUFFLEURS_TABLE_MIN_PO}–{SOUFFLEURS_TABLE_MAX_PO} po).
-                      Ventec vous contactera pour préciser le nombre de
-                      souffleurs.
-                    </div>
-                  </div>
-                ) : souffleursChoice ? (
-                  <div className="flex items-start gap-3 flex-wrap">
-                    <div className="max-w-[240px]">
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="bg-[#1b9ae0] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
+                          Soufflerie du haut
+                        </span>
+                      </div>
                       <select
-                        value={active.souffleurs_count}
+                        value={active.souffleurs_count_haut}
                         onChange={(e) =>
-                          updateActive({ souffleurs_count: e.target.value })
+                          updateActive({
+                            souffleurs_count_haut: e.target.value,
+                          })
                         }
                         className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
                       >
                         <option value="">— Sélectionner —</option>
-                        {souffleursChoice.options.map((n) => (
+                        {souffleurOptions.map((n) => (
                           <option key={n} value={String(n)}>
                             {n} souffleur{n > 1 ? "s" : ""}
                           </option>
                         ))}
                       </select>
                     </div>
-                    <div className="bg-[#f0f7fb] text-[#0f7bb5] px-2.5 py-1.5 rounded-md text-xs font-semibold">
-                      Plage {souffleursChoice.rangeLabel}
+                    <div className="border-[1.5px] border-[#e3e6ec] rounded-xl p-4 bg-[#fafbfc]">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="bg-[#1a1f2e] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-[0.5px]">
+                          Soufflerie du bas
+                        </span>
+                      </div>
+                      <select
+                        value={active.souffleurs_count_bas}
+                        onChange={(e) =>
+                          updateActive({
+                            souffleurs_count_bas: e.target.value,
+                          })
+                        }
+                        className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                      >
+                        <option value="">— Sélectionner —</option>
+                        {souffleurOptions.map((n) => (
+                          <option key={n} value={String(n)}>
+                            {n} souffleur{n > 1 ? "s" : ""}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-[#f2d89a] bg-[#fff7e5] p-3 text-[13px] text-[#7a5d00]">
-                    Longueur non couverte par la table standard.
                   </div>
                 )}
 
@@ -851,7 +952,7 @@ export function RemplacementForm({
                     }
                     className="w-5 h-5 mt-0.5 accent-[#1b9ae0] shrink-0 cursor-pointer"
                   />
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="font-semibold text-[14px]">
                       Souffleries aux deux extrémités
                     </div>

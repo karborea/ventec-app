@@ -9,74 +9,88 @@
 
 export const KIT_EXTREMITE_PO = 48; // 4 ft total (2 ft each end)
 
-// Height ranges for curtain types (from product spec)
-export const RIDEAU_SIMPLE_MIN_PO = 36; //  3 ft
-export const RIDEAU_SIMPLE_MAX_PO = 126; // 10.5 ft
-export const RIDEAU_DOUBLE_MIN_PO = 96; //  8 ft
-export const RIDEAU_DOUBLE_MAX_PO = 168; // 14 ft
+// Height ranges for curtain types (client update April 2026 — aligned
+// with the souffleurs table boundaries).
+export const RIDEAU_SIMPLE_MIN_PO = 32;
+export const RIDEAU_SIMPLE_MAX_PO = 124;
+export const RIDEAU_DOUBLE_MIN_PO = 92;
+export const RIDEAU_DOUBLE_MAX_PO = 185;
 
 /**
- * Official Ventec blower-count table.
- * Source ranges were in feet; converted to inches (× 12) here so all
- * calculations stay in the same unit as the form.
+ * Official Ventec blower-count table (client-provided April 2026).
+ * Driven by HAUTEUR (po) + SYSTÈME. The "aux deux extrémités" mode
+ * is recommended automatically when longueur exceeds a per-row threshold (ft).
  *
- * Note : the source table has a gap at 125 ft (= 1500 po), intentional
- * and preserved as-is.
+ * Hauteur reference:
+ *  - Nouvelle commande simple  → hauteur du polymat (unique)
+ *  - Nouvelle commande double  → haut + bas cumulés
+ *  - Remplacement simple       → hauteur du support simple
+ *  - Remplacement double       → hauteur max(haut, bas) — couvrance totale
  */
-type SouffleursRange = {
+type SouffleursRule = {
+  systeme: "simple" | "double";
+  /** Inclusive lower bound in po (matches .25 boundaries from source sheet). */
   minPo: number;
+  /** Inclusive upper bound in po. */
   maxPo: number;
-  /** First value is the standard / recommended choice. */
-  options: readonly number[];
+  /** Base count options (per single side). User picks one. */
+  baseOptions: readonly number[];
+  /** Longueur (ft) above which "aux 2 extrémités" is auto-recommended. */
+  doubleThresholdFt: number;
 };
 
-const SOUFFLEURS_TABLE: readonly SouffleursRange[] = [
-  { minPo: 32 * 12, maxPo: 64 * 12, options: [2] }, //   384 – 768 po
-  { minPo: 65 * 12, maxPo: 124 * 12, options: [3] }, //  780 – 1488 po
-  { minPo: 126 * 12, maxPo: 135 * 12, options: [3, 6] }, // 1512 – 1620 po
-  { minPo: 136 * 12, maxPo: 146 * 12, options: [3, 4, 6] }, // 1632 – 1752 po
-  { minPo: 147 * 12, maxPo: 185 * 12, options: [4, 6] }, // 1764 – 2220 po
+const SOUFFLEURS_RULES: readonly SouffleursRule[] = [
+  // Rideau simple
+  { systeme: "simple", minPo: 32, maxPo: 64, baseOptions: [2], doubleThresholdFt: 220 },
+  { systeme: "simple", minPo: 64.25, maxPo: 80, baseOptions: [3], doubleThresholdFt: 200 },
+  { systeme: "simple", minPo: 80.25, maxPo: 124, baseOptions: [3], doubleThresholdFt: 160 },
+  // Rideau double
+  { systeme: "double", minPo: 92, maxPo: 124, baseOptions: [3], doubleThresholdFt: 220 },
+  { systeme: "double", minPo: 124.25, maxPo: 135, baseOptions: [3, 6], doubleThresholdFt: 200 },
+  { systeme: "double", minPo: 135.25, maxPo: 146, baseOptions: [3, 4, 6], doubleThresholdFt: 200 },
+  { systeme: "double", minPo: 146.25, maxPo: 185, baseOptions: [4, 8], doubleThresholdFt: 200 },
 ] as const;
 
-export const SOUFFLEURS_TABLE_MIN_PO = SOUFFLEURS_TABLE[0].minPo;
-export const SOUFFLEURS_TABLE_MAX_PO =
-  SOUFFLEURS_TABLE[SOUFFLEURS_TABLE.length - 1].maxPo;
+export const SOUFFLEURS_RANGE: Record<"simple" | "double", { minPo: number; maxPo: number }> = {
+  simple: { minPo: 32, maxPo: 124 },
+  double: { minPo: 92, maxPo: 185 },
+};
 
 export type SouffleursChoice = {
-  /** All allowed counts for this length, in order (first = standard). */
-  options: number[];
-  /** The standard / recommended count for this length. */
-  recommended: number;
-  /** Human-readable inches range (e.g. "780 à 1488 po"). */
+  baseOptions: number[];
+  doubleThresholdFt: number;
+  doubleThresholdPo: number;
   rangeLabel: string;
+  /** True when longueur exceeds the "aux 2 extrémités" threshold. */
+  auxDeuxExtremitesRecommended: boolean;
 };
 
 /**
- * Returns the allowed souffleurs counts for a given opening length (po),
- * or null when the length is outside any table row.
+ * Returns the allowed souffleurs configuration for a given hauteur (po) +
+ * système, or null when the hauteur is outside any table row.
+ * Pass longueurPo to get the auto-recommendation for "aux 2 extrémités".
  */
 export function getSouffleursChoice(
-  longueurPo: number,
+  systeme: "simple" | "double",
+  hauteurPo: number,
+  longueurPo: number | null,
 ): SouffleursChoice | null {
-  if (!Number.isFinite(longueurPo) || longueurPo <= 0) return null;
-  for (const row of SOUFFLEURS_TABLE) {
-    if (longueurPo >= row.minPo && longueurPo <= row.maxPo) {
+  if (!Number.isFinite(hauteurPo) || hauteurPo <= 0) return null;
+  for (const rule of SOUFFLEURS_RULES) {
+    if (rule.systeme !== systeme) continue;
+    if (hauteurPo >= rule.minPo && hauteurPo <= rule.maxPo) {
+      const thresholdPo = rule.doubleThresholdFt * 12;
       return {
-        options: [...row.options],
-        recommended: row.options[0],
-        rangeLabel: `${row.minPo} à ${row.maxPo} po`,
+        baseOptions: [...rule.baseOptions],
+        doubleThresholdFt: rule.doubleThresholdFt,
+        doubleThresholdPo: thresholdPo,
+        rangeLabel: `${rule.minPo}–${rule.maxPo} po`,
+        auxDeuxExtremitesRecommended:
+          longueurPo !== null && longueurPo >= thresholdPo,
       };
     }
   }
   return null;
-}
-
-/**
- * Legacy helper kept for backward compatibility : returns the standard
- * recommendation only, not the full list of options.
- */
-export function recommendSouffleurs(longueurPo: number): number | null {
-  return getSouffleursChoice(longueurPo)?.recommended ?? null;
 }
 
 /**
@@ -128,54 +142,102 @@ export function longueurTotale(longueurPo: number): number {
 }
 
 /**
- * Official Ventec cell-count table (for Remplacement).
- * Input: hauteur du support in pouces. Output: nombre de cellules.
+ * Official Ventec cell-count tables (Couverture avec compression).
+ * Client-provided update, April 2026.
  *
- * Note : the source table has a gap around 41-46 po (no row, intentional),
- * and rows 78-83 / 83-88 overlap at 83 — both kept as-is from the spec.
- * For double systems, each support side is looked up independently by its
- * own hauteur.
+ * Two tables:
+ *  - SIMPLE : hauteur du support (po) → nombre de cellules (total côté unique)
+ *  - DOUBLE : hauteur totale de couvrance (= haut + bas, po) → { haut, bas }
+ *            Le premier nombre = cellules côté haut, le second = côté bas.
+ *
+ * Pour systeme double, on somme les deux hauteurs de support et on fait un
+ * seul lookup dans la table DOUBLE. L'ordre haut/bas est significatif.
  */
-type CellsRange = {
+type CellsRangeSimple = {
   minPo: number;
   maxPo: number;
   cells: number;
 };
 
-const CELLS_TABLE: readonly CellsRange[] = [
-  { minPo: 24, maxPo: 24, cells: 4 },
-  { minPo: 25, maxPo: 29, cells: 5 },
-  { minPo: 30, maxPo: 35, cells: 6 },
-  { minPo: 36, maxPo: 40, cells: 7 },
-  { minPo: 47, maxPo: 50, cells: 9 },
-  { minPo: 51, maxPo: 56, cells: 10 },
-  { minPo: 57, maxPo: 61, cells: 11 },
-  { minPo: 62, maxPo: 66, cells: 12 },
-  { minPo: 67, maxPo: 72, cells: 13 },
-  { minPo: 73, maxPo: 77, cells: 14 },
-  { minPo: 78, maxPo: 83, cells: 15 },
-  { minPo: 83, maxPo: 88, cells: 16 },
-  { minPo: 89, maxPo: 93, cells: 17 },
+type CellsRangeDouble = {
+  minPo: number;
+  maxPo: number;
+  haut: number;
+  bas: number;
+};
+
+const CELLS_TABLE_SIMPLE: readonly CellsRangeSimple[] = [
+  { minPo: 24, maxPo: 24.25, cells: 4 },
+  { minPo: 24.5, maxPo: 29.5, cells: 5 },
+  { minPo: 29.75, maxPo: 35, cells: 6 },
+  { minPo: 35.25, maxPo: 40, cells: 7 },
+  { minPo: 40.25, maxPo: 46, cells: 8 },
+  { minPo: 46.25, maxPo: 50, cells: 9 },
+  { minPo: 50.25, maxPo: 56, cells: 10 },
+  { minPo: 56.25, maxPo: 61, cells: 11 },
+  { minPo: 61.25, maxPo: 66, cells: 12 },
+  { minPo: 66.25, maxPo: 72, cells: 13 },
+  { minPo: 72.25, maxPo: 77, cells: 14 },
+  { minPo: 77.25, maxPo: 83, cells: 15 },
+  { minPo: 83.25, maxPo: 88, cells: 16 },
+  { minPo: 88.25, maxPo: 93.75, cells: 17 },
   { minPo: 94, maxPo: 99, cells: 18 },
-  { minPo: 100, maxPo: 104, cells: 19 },
-  { minPo: 105, maxPo: 110, cells: 20 },
-  { minPo: 111, maxPo: 115, cells: 21 },
-  { minPo: 116, maxPo: 121, cells: 22 },
-  { minPo: 122, maxPo: 126, cells: 23 },
-  { minPo: 127, maxPo: 133, cells: 24 },
+  { minPo: 99.25, maxPo: 104, cells: 19 },
+  { minPo: 104.25, maxPo: 110, cells: 20 },
+  { minPo: 110.25, maxPo: 115, cells: 21 },
+  { minPo: 115.25, maxPo: 121, cells: 22 },
+  { minPo: 121.25, maxPo: 126, cells: 23 },
+  { minPo: 126.25, maxPo: 132, cells: 24 },
 ] as const;
 
-export const CELLS_TABLE_MIN_PO = CELLS_TABLE[0].minPo;
-export const CELLS_TABLE_MAX_PO = CELLS_TABLE[CELLS_TABLE.length - 1].maxPo;
+const CELLS_TABLE_DOUBLE: readonly CellsRangeDouble[] = [
+  { minPo: 99.25, maxPo: 104, haut: 9, bas: 10 },
+  { minPo: 104.25, maxPo: 110, haut: 10, bas: 10 },
+  { minPo: 110.25, maxPo: 115, haut: 10, bas: 11 },
+  { minPo: 115.25, maxPo: 121, haut: 11, bas: 11 },
+  { minPo: 121.5, maxPo: 126, haut: 11, bas: 12 },
+  { minPo: 126.25, maxPo: 133, haut: 12, bas: 12 },
+  { minPo: 133.25, maxPo: 138, haut: 12, bas: 13 },
+  { minPo: 138.25, maxPo: 143, haut: 13, bas: 13 },
+  { minPo: 143.25, maxPo: 148, haut: 13, bas: 14 },
+  { minPo: 148.25, maxPo: 154, haut: 14, bas: 14 },
+  { minPo: 154.25, maxPo: 160, haut: 14, bas: 15 },
+  { minPo: 160.25, maxPo: 166, haut: 15, bas: 15 },
+  { minPo: 166.25, maxPo: 172, haut: 15, bas: 16 },
+  { minPo: 172.25, maxPo: 178, haut: 16, bas: 16 },
+  { minPo: 178.25, maxPo: 184, haut: 16, bas: 17 },
+  { minPo: 184.25, maxPo: 190, haut: 17, bas: 17 },
+  { minPo: 190.25, maxPo: 196, haut: 17, bas: 18 },
+] as const;
+
+export const CELLS_RANGE: Record<"simple" | "double", { minPo: number; maxPo: number }> = {
+  simple: { minPo: 24, maxPo: 132 },
+  double: { minPo: 99.25, maxPo: 196 },
+};
 
 /**
- * Look up recommended cell count for a given support height (po).
- * Returns null when the height falls outside the table (incl. the 41-46 gap).
+ * Systeme simple : lookup cellules par hauteur du support.
  */
-export function getCellsForHauteur(hauteurPo: number): number | null {
+export function getCellsForHauteurSimple(hauteurPo: number): number | null {
   if (!Number.isFinite(hauteurPo) || hauteurPo <= 0) return null;
-  for (const row of CELLS_TABLE) {
+  for (const row of CELLS_TABLE_SIMPLE) {
     if (hauteurPo >= row.minPo && hauteurPo <= row.maxPo) return row.cells;
+  }
+  return null;
+}
+
+/**
+ * Systeme double : lookup cellules haut + bas par hauteur totale (somme
+ * haut + bas). Premier nombre = côté haut, second = côté bas.
+ */
+export function getCellsForHauteurDouble(
+  hauteurTotalePo: number,
+): { haut: number; bas: number } | null {
+  if (!Number.isFinite(hauteurTotalePo) || hauteurTotalePo <= 0) return null;
+  for (const row of CELLS_TABLE_DOUBLE) {
+    if (hauteurTotalePo >= row.minPo && hauteurTotalePo <= row.maxPo) {
+      return { haut: row.haut, bas: row.bas };
+    }
   }
   return null;
 }

@@ -104,18 +104,28 @@ function parsePayload(raw: unknown): FormPayload | null {
     const cleanedGrandeur = rt === "double" ? rg : null;
     return {
       longueur_po: toInt(op.longueur_po),
-      // Only used when double + standard; zero out otherwise to avoid stale data
+      // Used when double (standard ou hors-standard) ; zero out otherwise.
       longueur_totale_po:
-        rt === "double" && cleanedGrandeur === "standard"
+        rt === "double" && cleanedGrandeur !== null
           ? toInt(op.longueur_totale_po)
           : null,
       materiau_haut: mh,
       materiau_bas: mb,
       rideau_type: rt,
       rideau_grandeur: cleanedGrandeur,
-      polymat_unique_hauteur_po: toInt(op.polymat_unique_hauteur_po),
-      polymat_haut_hauteur_po: toInt(op.polymat_haut_hauteur_po),
-      polymat_bas_hauteur_po: toInt(op.polymat_bas_hauteur_po),
+      // Polymat hauteurs : seulement pour rideau simple ou double hors-standard.
+      // Le rideau double STANDARD n'a pas de saisie haut/bas (Ventec gère
+      // la répartition à l'interne), donc on les force à null.
+      polymat_unique_hauteur_po:
+        rt === "simple" ? toInt(op.polymat_unique_hauteur_po) : null,
+      polymat_haut_hauteur_po:
+        rt === "double" && cleanedGrandeur === "hors_standard"
+          ? toInt(op.polymat_haut_hauteur_po)
+          : null,
+      polymat_bas_hauteur_po:
+        rt === "double" && cleanedGrandeur === "hors_standard"
+          ? toInt(op.polymat_bas_hauteur_po)
+          : null,
       souffleurs_count: toInt(op.souffleurs_count),
       souffleurs_aux_deux_extremites:
         op.souffleurs_aux_deux_extremites === true,
@@ -150,7 +160,12 @@ function validateForSubmission(
         };
       }
     } else {
-      if (!op.polymat_haut_hauteur_po || !op.polymat_bas_hauteur_po) {
+      // Double hors-standard : haut/bas requis. Standard : non requis (Ventec
+      // détermine la répartition à l'interne).
+      if (
+        op.rideau_grandeur === "hors_standard" &&
+        (!op.polymat_haut_hauteur_po || !op.polymat_bas_hauteur_po)
+      ) {
         return {
           ok: false,
           error: `Ouverture ${n} : les hauteurs du haut et du bas sont requises.`,
@@ -162,10 +177,14 @@ function validateForSubmission(
           error: `Ouverture ${n} : sélectionnez la grandeur du rideau double (standard ou hors-standard).`,
         };
       }
-      if (op.rideau_grandeur === "standard" && !op.longueur_totale_po) {
+      if (
+        (op.rideau_grandeur === "standard" ||
+          op.rideau_grandeur === "hors_standard") &&
+        !op.longueur_totale_po
+      ) {
         return {
           ok: false,
-          error: `Ouverture ${n} : la longueur de l'ouverture totale est requise pour un rideau double standard.`,
+          error: `Ouverture ${n} : la hauteur de l'ouverture totale est requise pour un rideau double.`,
         };
       }
     }
@@ -375,7 +394,12 @@ type RemplacementOpeningPayload = {
   nb_cellules_simple?: number | null;
   nb_cellules_haut?: number | null;
   nb_cellules_bas?: number | null;
+  /** Systeme simple : nombre total de souffleurs. Null si systeme double. */
   souffleurs_count?: number | null;
+  /** Systeme double : souffleurs côté haut. Null si systeme simple. */
+  souffleurs_count_haut?: number | null;
+  /** Systeme double : souffleurs côté bas. Null si systeme simple. */
+  souffleurs_count_bas?: number | null;
   souffleurs_aux_deux_extremites?: boolean;
 };
 
@@ -421,7 +445,10 @@ function parseRemplacementPayload(
         : null;
     const cleanedRideauARemplacer =
       systeme === "double" ? rideauARemplacer : null;
+    // Modèle Polymat ignoré (zero out) lorsque le manufacturier d'origine
+    // n'est pas Ventec.
     const modele =
+      mfr === "ventec" &&
       typeof op.modele_polymat === "string" &&
       MODELES_POLYMAT.has(op.modele_polymat as ModelePolymat)
         ? (op.modele_polymat as ModelePolymat)
@@ -453,7 +480,9 @@ function parseRemplacementPayload(
       nb_cellules_simple: !isDouble ? toInt(op.nb_cellules_simple) : null,
       nb_cellules_haut: isDouble ? toInt(op.nb_cellules_haut) : null,
       nb_cellules_bas: isDouble ? toInt(op.nb_cellules_bas) : null,
-      souffleurs_count: toInt(op.souffleurs_count),
+      souffleurs_count: !isDouble ? toInt(op.souffleurs_count) : null,
+      souffleurs_count_haut: isDouble ? toInt(op.souffleurs_count_haut) : null,
+      souffleurs_count_bas: isDouble ? toInt(op.souffleurs_count_bas) : null,
       souffleurs_aux_deux_extremites:
         op.souffleurs_aux_deux_extremites === true,
     };
@@ -486,7 +515,8 @@ function validateRemplacementForSubmission(
         error: `Ouverture ${n} : précisez quel rideau remplacer.`,
       };
     }
-    if (!op.modele_polymat) {
+    // Modèle Polymat requis seulement pour manufacturier Ventec.
+    if (payload.manufacturier_origine === "ventec" && !op.modele_polymat) {
       return {
         ok: false,
         error: `Ouverture ${n} : sélectionnez le modèle Polymat.`,
@@ -508,29 +538,55 @@ function validateRemplacementForSubmission(
           error: `Ouverture ${n} : le nombre de cellules est requis.`,
         };
       }
+      if (!op.souffleurs_count) {
+        return {
+          ok: false,
+          error: `Ouverture ${n} : le nombre de souffleurs est requis.`,
+        };
+      }
     } else {
-      const needHaut =
-        op.rideau_a_remplacer === "haut" ||
-        op.rideau_a_remplacer === "les_deux";
-      const needBas =
-        op.rideau_a_remplacer === "bas" ||
-        op.rideau_a_remplacer === "les_deux";
-      if (needHaut && !op.hauteur_support_haut_po) {
+      // Systeme double : les deux hauteurs sont toujours requises
+      // (somme utilisée pour le calcul des cellules et souffleurs).
+      if (!op.hauteur_support_haut_po) {
         return {
           ok: false,
           error: `Ouverture ${n} : la hauteur du support haut est requise.`,
         };
       }
-      if (needBas && !op.hauteur_support_bas_po) {
+      if (!op.hauteur_support_bas_po) {
         return {
           ok: false,
           error: `Ouverture ${n} : la hauteur du support bas est requise.`,
         };
       }
-      if (!op.nb_cellules_haut || !op.nb_cellules_bas) {
+      const needCellulesHaut =
+        op.rideau_a_remplacer === "haut" ||
+        op.rideau_a_remplacer === "les_deux";
+      const needCellulesBas =
+        op.rideau_a_remplacer === "bas" ||
+        op.rideau_a_remplacer === "les_deux";
+      if (needCellulesHaut && !op.nb_cellules_haut) {
         return {
           ok: false,
-          error: `Ouverture ${n} : les cellules haut et bas sont requises.`,
+          error: `Ouverture ${n} : le nombre de cellules du haut est requis.`,
+        };
+      }
+      if (needCellulesBas && !op.nb_cellules_bas) {
+        return {
+          ok: false,
+          error: `Ouverture ${n} : le nombre de cellules du bas est requis.`,
+        };
+      }
+      if (!op.souffleurs_count_haut) {
+        return {
+          ok: false,
+          error: `Ouverture ${n} : le nombre de souffleurs du haut est requis.`,
+        };
+      }
+      if (!op.souffleurs_count_bas) {
+        return {
+          ok: false,
+          error: `Ouverture ${n} : le nombre de souffleurs du bas est requis.`,
         };
       }
     }
@@ -557,6 +613,8 @@ function remplacementOuvertureRow(
     nb_cellules_haut: op.nb_cellules_haut ?? null,
     nb_cellules_bas: op.nb_cellules_bas ?? null,
     souffleurs_count: op.souffleurs_count ?? null,
+    souffleurs_count_haut: op.souffleurs_count_haut ?? null,
+    souffleurs_count_bas: op.souffleurs_count_bas ?? null,
     souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites ?? false,
   };
 }
