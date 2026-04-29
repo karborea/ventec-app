@@ -681,6 +681,7 @@ export function RemplacementForm({
                     <input
                       type="number"
                       min={0}
+                      step="0.01"
                       value={active.hauteur_support_simple_po}
                       onChange={(e) =>
                         updateActive({
@@ -709,6 +710,7 @@ export function RemplacementForm({
                           <input
                             type="number"
                             min={0}
+                            step="0.01"
                             value={active.hauteur_support_haut_po}
                             onChange={(e) =>
                               updateActive({
@@ -735,6 +737,7 @@ export function RemplacementForm({
                           <input
                             type="number"
                             min={0}
+                            step="0.01"
                             value={active.hauteur_support_bas_po}
                             onChange={(e) =>
                               updateActive({
@@ -850,9 +853,17 @@ export function RemplacementForm({
                       max={11}
                       step={1}
                       value={active.longueur_po}
-                      onChange={(e) =>
-                        updateActive({ longueur_po: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          updateActive({ longueur_po: "" });
+                          return;
+                        }
+                        const n = Number.parseInt(raw, 10);
+                        if (!Number.isFinite(n)) return;
+                        const clamped = Math.min(11, Math.max(0, n));
+                        updateActive({ longueur_po: String(clamped) });
+                      }}
                       placeholder="6"
                       className="w-full min-h-12 px-3.5 pr-12 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
                     />

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { SOUFFLEURS_RANGE } from "@/lib/soumissions/rules";
 
 export type SoumissionFormState = {
   error?: string;
@@ -64,6 +65,18 @@ function toInt(v: unknown): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/**
+ * Comme toInt mais accepte les décimales (ex. 55.45, 67.5).
+ * Utilisé pour les hauteurs (po) qui peuvent être saisies avec précision.
+ */
+function toNum(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = typeof v === "number" ? v : Number.parseFloat(String(v));
+  if (!Number.isFinite(n) || n < 0) return null;
+  // Arrondir à 2 décimales pour rester cohérent avec numeric(10,2).
+  return Math.round(n * 100) / 100;
+}
+
 function parsePayload(raw: unknown): FormPayload | null {
   if (typeof raw !== "string" || !raw) return null;
   let obj: unknown;
@@ -107,24 +120,24 @@ function parsePayload(raw: unknown): FormPayload | null {
       // Used when double (standard ou hors-standard) ; zero out otherwise.
       longueur_totale_po:
         rt === "double" && cleanedGrandeur !== null
-          ? toInt(op.longueur_totale_po)
+          ? toNum(op.longueur_totale_po)
           : null,
       materiau_haut: mh,
       materiau_bas: mb,
       rideau_type: rt,
       rideau_grandeur: cleanedGrandeur,
-      // Polymat hauteurs : seulement pour rideau simple ou double hors-standard.
-      // Le rideau double STANDARD n'a pas de saisie haut/bas (Ventec gère
-      // la répartition à l'interne), donc on les force à null.
+      // Polymat hauteurs (décimales permises) : seulement pour rideau simple
+      // ou double hors-standard. Le rideau double STANDARD n'a pas de saisie
+      // haut/bas (Ventec gère la répartition à l'interne).
       polymat_unique_hauteur_po:
-        rt === "simple" ? toInt(op.polymat_unique_hauteur_po) : null,
+        rt === "simple" ? toNum(op.polymat_unique_hauteur_po) : null,
       polymat_haut_hauteur_po:
         rt === "double" && cleanedGrandeur === "hors_standard"
-          ? toInt(op.polymat_haut_hauteur_po)
+          ? toNum(op.polymat_haut_hauteur_po)
           : null,
       polymat_bas_hauteur_po:
         rt === "double" && cleanedGrandeur === "hors_standard"
-          ? toInt(op.polymat_bas_hauteur_po)
+          ? toNum(op.polymat_bas_hauteur_po)
           : null,
       souffleurs_count: toInt(op.souffleurs_count),
       souffleurs_aux_deux_extremites:
@@ -187,6 +200,30 @@ function validateForSubmission(
           error: `Ouverture ${n} : la hauteur de l'ouverture totale est requise pour un rideau double.`,
         };
       }
+    }
+
+    // Souffleurs : requis dès que la section est affichée (= hauteur en
+    // plage table). On dérive la hauteur de référence selon le mode.
+    const hauteurRef =
+      op.rideau_type === "simple"
+        ? (op.polymat_unique_hauteur_po ?? null)
+        : op.rideau_grandeur === "standard"
+          ? (op.longueur_totale_po ?? null)
+          : (op.polymat_haut_hauteur_po ?? 0) +
+                (op.polymat_bas_hauteur_po ?? 0) || null;
+    const range = op.rideau_type
+      ? SOUFFLEURS_RANGE[op.rideau_type]
+      : null;
+    const inRange =
+      hauteurRef !== null &&
+      range !== null &&
+      hauteurRef >= range.minPo &&
+      hauteurRef <= range.maxPo;
+    if (inRange && !op.souffleurs_count) {
+      return {
+        ok: false,
+        error: `Ouverture ${n} : le nombre de souffleurs est requis.`,
+      };
     }
   }
   return { ok: true };
@@ -468,13 +505,14 @@ function parseRemplacementPayload(
     return {
       systeme,
       rideau_a_remplacer: cleanedRideauARemplacer,
+      // Hauteurs du support — décimales permises (ex. 55.45, 67.5).
       hauteur_support_simple_po: !isDouble
-        ? toInt(op.hauteur_support_simple_po)
+        ? toNum(op.hauteur_support_simple_po)
         : null,
       hauteur_support_haut_po:
-        isDouble && wantHaut ? toInt(op.hauteur_support_haut_po) : null,
+        isDouble && wantHaut ? toNum(op.hauteur_support_haut_po) : null,
       hauteur_support_bas_po:
-        isDouble && wantBas ? toInt(op.hauteur_support_bas_po) : null,
+        isDouble && wantBas ? toNum(op.hauteur_support_bas_po) : null,
       modele_polymat: modele,
       longueur_po: toInt(op.longueur_po),
       nb_cellules_simple: !isDouble ? toInt(op.nb_cellules_simple) : null,
