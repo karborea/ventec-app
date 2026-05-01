@@ -49,19 +49,21 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/mes-soumissions";
-    return NextResponse.redirect(url);
-  }
-
-  if (user && isAdminRoute) {
+  if (user && (isAuthPage || isAdminRoute)) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .maybeSingle();
-    if (profile?.role !== "admin") {
+    const isAdmin = profile?.role === "admin";
+
+    if (isAuthPage) {
+      const url = request.nextUrl.clone();
+      url.pathname = isAdmin ? "/admin" : "/mes-soumissions";
+      return NextResponse.redirect(url);
+    }
+
+    if (isAdminRoute && !isAdmin) {
       const url = request.nextUrl.clone();
       url.pathname = "/mes-soumissions";
       return NextResponse.redirect(url);

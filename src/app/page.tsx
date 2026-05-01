@@ -7,5 +7,13 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  redirect(user ? "/mes-soumissions" : "/login");
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  redirect(profile?.role === "admin" ? "/admin" : "/mes-soumissions");
 }

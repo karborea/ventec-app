@@ -21,14 +21,23 @@ export async function login(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-  if (error) {
+  if (error || !data.user) {
     return { error: "Courriel ou mot de passe invalide." };
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .maybeSingle();
+
   revalidatePath("/", "layout");
-  redirect("/mes-soumissions");
+  redirect(profile?.role === "admin" ? "/admin" : "/mes-soumissions");
 }
 
 export async function signup(
