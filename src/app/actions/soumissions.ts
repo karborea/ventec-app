@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SOUFFLEURS_RANGE } from "@/lib/soumissions/rules";
+import { onSoumissionSubmitted } from "@/lib/soumissions/on-submitted";
 
 export type SoumissionFormState = {
   error?: string;
@@ -305,6 +306,10 @@ export async function createNouvelleCommande(
     }
   }
 
+  if (isSubmit && user.email) {
+    await onSoumissionSubmitted(supabase, soumission.id, user.id, user.email);
+  }
+
   revalidatePath("/mes-soumissions");
   const status = isSubmit ? "soumis" : "brouillon";
   redirect(
@@ -406,6 +411,10 @@ export async function updateNouvelleCommande(
     if (insErr) {
       return { error: "Impossible de sauvegarder les ouvertures." };
     }
+  }
+
+  if (isSubmit && user.email) {
+    await onSoumissionSubmitted(supabase, soumissionId, user.id, user.email);
   }
 
   revalidatePath("/mes-soumissions");
@@ -780,6 +789,10 @@ export async function createRemplacement(
 
   await uploadInstallationFiles(supabase, soumission.id, formData);
 
+  if (isSubmit && user.email) {
+    await onSoumissionSubmitted(supabase, soumission.id, user.id, user.email);
+  }
+
   revalidatePath("/mes-soumissions");
   const status = isSubmit ? "soumis" : "brouillon";
   redirect(
@@ -867,6 +880,10 @@ export async function updateRemplacement(
   }
 
   await uploadInstallationFiles(supabase, soumissionId, formData);
+
+  if (isSubmit && user.email) {
+    await onSoumissionSubmitted(supabase, soumissionId, user.id, user.email);
+  }
 
   revalidatePath("/mes-soumissions");
   revalidatePath(`/soumissions/${soumissionId}`);

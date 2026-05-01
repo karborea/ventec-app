@@ -32,11 +32,14 @@ export async function updateSession(request: NextRequest) {
 
   // Protect authed pages
   const pathname = request.nextUrl.pathname;
+  const isAdminRoute = pathname.startsWith("/admin");
   const isProtected =
+    isAdminRoute ||
     pathname.startsWith("/mes-soumissions") ||
     pathname.startsWith("/nouvelle-commande") ||
     pathname.startsWith("/remplacement") ||
-    pathname.startsWith("/soumissions/");
+    pathname.startsWith("/soumissions/") ||
+    pathname.startsWith("/profil");
   const isAuthPage =
     pathname.startsWith("/login") || pathname.startsWith("/signup");
 
@@ -50,6 +53,19 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/mes-soumissions";
     return NextResponse.redirect(url);
+  }
+
+  if (user && isAdminRoute) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profile?.role !== "admin") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/mes-soumissions";
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signout } from "@/app/actions/auth";
+import { HeaderNav } from "./header-nav";
 
 export async function AppHeader() {
   const supabase = await createClient();
@@ -13,10 +14,12 @@ export async function AppHeader() {
   const { data: profile } = user
     ? await supabase
         .from("profiles")
-        .select("first_name, last_name")
+        .select("first_name, last_name, role")
         .eq("id", user.id)
         .maybeSingle()
     : { data: null };
+
+  const isAdmin = profile?.role === "admin";
 
   const displayName =
     profile && (profile.first_name || profile.last_name)
@@ -28,10 +31,12 @@ export async function AppHeader() {
       ? `${profile.first_name[0] ?? ""}${profile.last_name[0] ?? ""}`.toUpperCase()
       : (user?.email?.[0] ?? "?").toUpperCase();
 
+  const homeHref = isAdmin ? "/admin" : "/mes-soumissions";
+
   return (
     <header className="bg-white border-b border-[#e3e6ec] px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-10">
-        <Link href="/mes-soumissions" aria-label="Ventec — accueil">
+        <Link href={homeHref} aria-label="Ventec — accueil">
           <Image
             src="/img/logo.png"
             alt="Ventec"
@@ -41,14 +46,7 @@ export async function AppHeader() {
             className="h-8 w-auto"
           />
         </Link>
-        <nav className="flex gap-6">
-          <Link
-            href="/mes-soumissions"
-            className="text-sm font-semibold text-[#1a1f2e] border-b-2 border-[#F37021] py-1.5"
-          >
-            Mes soumissions
-          </Link>
-        </nav>
+        <HeaderNav isAdmin={isAdmin} />
       </div>
 
       <div className="flex items-center gap-3">
