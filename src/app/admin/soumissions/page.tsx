@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { AdminSoumissionsList, type AdminSoumission } from "./list";
 
@@ -13,11 +14,22 @@ export default async function AdminSoumissionsPage() {
 
   return (
     <main className="max-w-5xl w-full mx-auto px-6 pb-20 pt-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold tracking-tight">Soumissions</h1>
-        <p className="text-[#5a6278] mt-1">
-          Toutes les soumissions, tous clients confondus.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight">
+            Soumissions
+          </h1>
+          <p className="text-[#5a6278] mt-1">
+            Toutes les soumissions, tous clients confondus.
+          </p>
+        </div>
+        <Link
+          href="/admin/soumissions/nouveau"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F37021] hover:bg-[#d85f16] text-white text-sm font-bold whitespace-nowrap"
+        >
+          <span className="text-lg leading-none">＋</span>
+          Nouvelle soumission
+        </Link>
       </div>
 
       {error && (

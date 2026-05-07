@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import type { SoumissionFormState } from "@/app/actions/soumissions";
+import type { SoumissionFormState } from "@/lib/soumissions/payload";
 import {
   getCellsForHauteurSimple,
   MODELES_POLYMAT,
@@ -65,6 +65,7 @@ type Props = {
   initialManufacturier?: ManufacturierOrigine;
   initialOpenings?: RemplacementOpeningDraft[];
   cancelHref?: string;
+  hiddenFields?: Record<string, string>;
 };
 
 function emptyOpening(): RemplacementOpeningDraft {
@@ -109,6 +110,7 @@ export function RemplacementForm({
   initialManufacturier = "ventec",
   initialOpenings,
   cancelHref = "/mes-soumissions",
+  hiddenFields,
 }: Props) {
   const [state, formAction, pending] = useActionState<
     SoumissionFormState,
@@ -256,6 +258,10 @@ export function RemplacementForm({
   return (
     <form action={formAction}>
       <input type="hidden" name="payload" value={payload} />
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([k, v]) => (
+          <input key={k} type="hidden" name={k} value={v} />
+        ))}
 
       <div className="grid w-full grid-cols-1 md:grid-cols-[360px_minmax(0,1fr)] gap-6">
         {/* SIDEBAR */}

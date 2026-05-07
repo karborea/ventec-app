@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import type { SoumissionFormState } from "@/app/actions/soumissions";
+import type { SoumissionFormState } from "@/lib/soumissions/payload";
 import {
   KIT_EXTREMITE_PO,
   longueurTotale,
@@ -59,6 +59,7 @@ type Props = {
   initialProjectName?: string;
   initialOpenings?: OpeningDraft[];
   cancelHref?: string;
+  hiddenFields?: Record<string, string>;
 };
 
 const MATERIAU_OPTIONS: { value: Materiau; label: string; color: string }[] = [
@@ -100,6 +101,7 @@ export function NouvelleCommandeForm({
   initialProjectName = "",
   initialOpenings,
   cancelHref = "/mes-soumissions",
+  hiddenFields,
 }: Props) {
   const [state, formAction, pending] = useActionState<
     SoumissionFormState,
@@ -274,6 +276,10 @@ export function NouvelleCommandeForm({
   return (
     <form action={formAction}>
       <input type="hidden" name="payload" value={payload} />
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([k, v]) => (
+          <input key={k} type="hidden" name={k} value={v} />
+        ))}
 
       <div className="grid w-full grid-cols-1 md:grid-cols-[360px_minmax(0,1fr)] gap-6">
         {/* SIDEBAR */}

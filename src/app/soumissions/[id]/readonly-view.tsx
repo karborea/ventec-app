@@ -1,4 +1,5 @@
 import { longueurTotale } from "@/lib/soumissions/rules";
+import { formatPiedsPouces } from "@/lib/soumissions/format";
 import type { OuvertureRow } from "./page";
 
 type SoumissionRow = {
@@ -91,6 +92,7 @@ function formatDate(iso: string | null): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Montreal",
   });
 }
 
@@ -243,12 +245,14 @@ function NouvelleOuvertureFields({ op }: { op: OuvertureRow }) {
     <dl className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-[14px]">
       <Field
         label="Longueur de l'ouverture"
-        value={op.longueur_po !== null ? `${op.longueur_po} po` : "—"}
+        value={formatPiedsPouces(op.longueur_po)}
       />
       <Field
         label="Longueur totale (+ kit 48 po)"
         value={
-          op.longueur_po !== null ? `${longueurTotale(op.longueur_po)} po` : "—"
+          op.longueur_po !== null
+            ? formatPiedsPouces(longueurTotale(op.longueur_po))
+            : "—"
         }
       />
       <Field
@@ -357,7 +361,7 @@ function RemplacementOuvertureFields({
       )}
       <Field
         label="Longueur de l'ouverture"
-        value={op.longueur_po !== null ? `${op.longueur_po} po` : "—"}
+        value={formatPiedsPouces(op.longueur_po)}
       />
       {!isDouble && (
         <>
