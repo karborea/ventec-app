@@ -37,7 +37,11 @@ export type OpeningDraft = {
   longueur_pi: string;
   /** Pouces résiduels (0–11). Combiné avec longueur_pi pour total en po. */
   longueur_po: string;
-  longueur_totale_po: string;
+  /** Hauteur totale — pieds. */
+  hauteur_totale_pi: string;
+  /** Hauteur totale — pouces résiduels (0–11). Combiné avec
+   *  hauteur_totale_pi pour total en po (DB col longueur_totale_po). */
+  hauteur_totale_po: string;
   materiau_haut: Materiau;
   materiau_bas: Materiau;
   rideau_type: RideauType;
@@ -78,7 +82,8 @@ function emptyOpening(): OpeningDraft {
   return {
     longueur_pi: "",
     longueur_po: "",
-    longueur_totale_po: "",
+    hauteur_totale_pi: "",
+    hauteur_totale_po: "",
     materiau_haut: "bois",
     materiau_bas: "acier",
     rideau_type: "simple",
@@ -126,15 +131,22 @@ export function NouvelleCommandeForm({
     longueurPiNum !== null || longueurPoReste !== null
       ? (longueurPiNum ?? 0) * 12 + (longueurPoReste ?? 0)
       : null;
+  // Hauteur totale (po) = pieds × 12 + pouces résiduels.
+  const hauteurTotalePiNum = parseNum(active.hauteur_totale_pi);
+  const hauteurTotalePoReste = parseNum(active.hauteur_totale_po);
+  const hauteurTotalePo =
+    hauteurTotalePiNum !== null || hauteurTotalePoReste !== null
+      ? (hauteurTotalePiNum ?? 0) * 12 + (hauteurTotalePoReste ?? 0)
+      : null;
   // Hauteur de référence (utilisée pour le calcul des souffleurs).
   // - Simple        → hauteur du polymat unique
-  // - Double standard → hauteur de l'ouverture totale (longueur_totale_po)
+  // - Double standard → hauteur de l'ouverture totale
   // - Double hors-standard → somme des hauteurs polymat haut + bas
   const hauteurPo =
     active.rideau_type === "simple"
       ? parseNum(active.polymat_unique_hauteur_po)
       : active.rideau_grandeur === "standard"
-        ? parseNum(active.longueur_totale_po)
+        ? hauteurTotalePo
         : (parseNum(active.polymat_haut_hauteur_po) ?? 0) +
             (parseNum(active.polymat_bas_hauteur_po) ?? 0) || null;
   const souffleursChoice =
@@ -180,19 +192,35 @@ export function NouvelleCommandeForm({
     active.rideau_type === "double" &&
     active.rideau_grandeur === "hors_standard";
 
-  function handleTotaleChange(value: string) {
-    if (!isAutoDistribute) {
-      updateActive({ longueur_totale_po: value });
-      return;
-    }
-    const total = parseNum(value);
-    if (total === null) {
-      updateActive({ longueur_totale_po: value });
+  function combineHauteurTotale(pi: string, poReste: string): number | null {
+    const piN = parseNum(pi);
+    const poN = parseNum(poReste);
+    return piN !== null || poN !== null ? (piN ?? 0) * 12 + (poN ?? 0) : null;
+  }
+
+  function handleTotalePiChange(value: string) {
+    const total = combineHauteurTotale(value, active.hauteur_totale_po);
+    if (!isAutoDistribute || total === null) {
+      updateActive({ hauteur_totale_pi: value });
       return;
     }
     const half = Math.floor(total / 2);
     updateActive({
-      longueur_totale_po: value,
+      hauteur_totale_pi: value,
+      polymat_haut_hauteur_po: String(half),
+      polymat_bas_hauteur_po: String(total - half),
+    });
+  }
+
+  function handleTotalePoChange(value: string) {
+    const total = combineHauteurTotale(active.hauteur_totale_pi, value);
+    if (!isAutoDistribute || total === null) {
+      updateActive({ hauteur_totale_po: value });
+      return;
+    }
+    const half = Math.floor(total / 2);
+    updateActive({
+      hauteur_totale_po: value,
       polymat_haut_hauteur_po: String(half),
       polymat_bas_hauteur_po: String(total - half),
     });
@@ -203,7 +231,7 @@ export function NouvelleCommandeForm({
       updateActive({ polymat_haut_hauteur_po: value });
       return;
     }
-    const total = parseNum(active.longueur_totale_po);
+    const total = hauteurTotalePo;
     const haut = parseNum(value);
     if (total === null || haut === null) {
       updateActive({ polymat_haut_hauteur_po: value });
@@ -220,7 +248,7 @@ export function NouvelleCommandeForm({
       updateActive({ polymat_bas_hauteur_po: value });
       return;
     }
-    const total = parseNum(active.longueur_totale_po);
+    const total = hauteurTotalePo;
     const bas = parseNum(value);
     if (total === null || bas === null) {
       updateActive({ polymat_bas_hauteur_po: value });
@@ -264,9 +292,25 @@ export function NouvelleCommandeForm({
             pi !== null || poReste !== null
               ? (pi ?? 0) * 12 + (poReste ?? 0)
               : null;
+          const tPi = parseNum(op.hauteur_totale_pi);
+          const tPoReste = parseNum(op.hauteur_totale_po);
+          const totalHauteur =
+            tPi !== null || tPoReste !== null
+              ? (tPi ?? 0) * 12 + (tPoReste ?? 0)
+              : null;
+          // Strip the form-only pi/po split; emit DB-shaped fields.
+          const {
+            hauteur_totale_pi: _hp,
+            hauteur_totale_po: _ht,
+            ...rest
+          } = op;
+          void _hp;
+          void _ht;
           return {
-            ...op,
+            ...rest,
             longueur_po: total !== null ? String(total) : "",
+            longueur_totale_po:
+              totalHauteur !== null ? String(totalHauteur) : "",
           };
         }),
       }),
@@ -434,9 +478,17 @@ export function NouvelleCommandeForm({
                         <div className="flex justify-between gap-3">
                           <dt className="text-[#5a6278]">Hauteur totale</dt>
                           <dd className="font-semibold">
-                            {op.longueur_totale_po
-                              ? `${op.longueur_totale_po} po`
-                              : "—"}
+                            {(() => {
+                              const tPi = parseNum(op.hauteur_totale_pi);
+                              const tPo = parseNum(op.hauteur_totale_po);
+                              const total =
+                                tPi !== null || tPo !== null
+                                  ? (tPi ?? 0) * 12 + (tPo ?? 0)
+                                  : null;
+                              return total !== null
+                                ? formatFeetInches(total)
+                                : "—";
+                            })()}
                           </dd>
                         </div>
                       )}
@@ -752,32 +804,56 @@ export function NouvelleCommandeForm({
                   {(active.rideau_grandeur === "standard" ||
                     active.rideau_grandeur === "hors_standard") && (
                     <div className="mt-4 pt-4 border-t border-dashed border-[#e3e6ec]">
-                      <label
-                        htmlFor="longueur-totale"
-                        className="block text-sm font-semibold mb-1 flex items-center gap-2"
-                      >
+                      <label className="block text-sm font-semibold mb-1 flex items-center gap-2">
                         <HauteurIcon className="text-[#1b9ae0] shrink-0" />
                         Hauteur de l&apos;ouverture totale{" "}
                         <span className="text-[#f37021]">*</span>
                         <MeasurementGuideButton compact />
                       </label>
                       <p className="text-xs text-[#5a6278] mb-2.5">
-                        Indiquez la hauteur totale à couvrir, en pouces.
+                        Indiquez la hauteur totale à couvrir, en pieds et
+                        pouces.
                       </p>
-                      <div className="max-w-[260px] relative">
-                        <input
-                          id="longueur-totale"
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={active.longueur_totale_po}
-                          onChange={(e) => handleTotaleChange(e.target.value)}
-                          placeholder="1440"
-                          className="w-full min-h-12 px-3.5 pr-14 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
-                          po
-                        </span>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="relative w-[140px]">
+                          <input
+                            type="number"
+                            min={0}
+                            value={active.hauteur_totale_pi}
+                            onChange={(e) =>
+                              handleTotalePiChange(e.target.value)
+                            }
+                            placeholder="10"
+                            className="w-full min-h-12 px-3.5 pr-12 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                            pi
+                          </span>
+                        </div>
+                        <div className="relative w-[140px]">
+                          <input
+                            type="number"
+                            min={0}
+                            max={11}
+                            value={active.hauteur_totale_po}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === "") {
+                                handleTotalePoChange("");
+                                return;
+                              }
+                              const n = Number.parseInt(raw, 10);
+                              if (!Number.isFinite(n)) return;
+                              const clamped = Math.min(11, Math.max(0, n));
+                              handleTotalePoChange(String(clamped));
+                            }}
+                            placeholder="6"
+                            className="w-full min-h-12 px-3.5 pr-12 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5a6278] text-sm pointer-events-none">
+                            po
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )}

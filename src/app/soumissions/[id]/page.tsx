@@ -67,11 +67,15 @@ function toNouvelleDraft(op: OuvertureRow): OpeningDraft {
   const totalPo = op.longueur_po;
   const piPart = totalPo !== null ? Math.floor(totalPo / 12) : null;
   const poPart = totalPo !== null ? totalPo - (piPart ?? 0) * 12 : null;
+  // Same split for hauteur totale.
+  const totalH = op.longueur_totale_po;
+  const hPi = totalH !== null ? Math.floor(totalH / 12) : null;
+  const hPo = totalH !== null ? totalH - (hPi ?? 0) * 12 : null;
   return {
     longueur_pi: piPart !== null ? String(piPart) : "",
     longueur_po: poPart !== null && poPart > 0 ? String(poPart) : "",
-    longueur_totale_po:
-      op.longueur_totale_po !== null ? String(op.longueur_totale_po) : "",
+    hauteur_totale_pi: hPi !== null ? String(hPi) : "",
+    hauteur_totale_po: hPo !== null && hPo > 0 ? String(hPo) : "",
     materiau_haut: (op.materiau_haut ?? "bois") as OpeningDraft["materiau_haut"],
     materiau_bas: (op.materiau_bas ?? "acier") as OpeningDraft["materiau_bas"],
     rideau_type: (op.rideau_type ?? "simple") as OpeningDraft["rideau_type"],

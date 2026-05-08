@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { onSoumissionSubmitted } from "@/lib/soumissions/on-submitted";
 import {
   parsePayload,
@@ -13,6 +14,23 @@ import {
   type SoumissionFormState,
 } from "@/lib/soumissions/payload";
 import { uploadInstallationFiles } from "@/lib/soumissions/upload";
+
+/** When an admin updates a soumission they don't own (proxy edit), look
+ *  up the owner's email so the post-submit pipeline emails the client. */
+async function resolveOwnerEmail(
+  callerId: string,
+  callerEmail: string | undefined,
+  ownerId: string,
+): Promise<string> {
+  if (callerId === ownerId) return callerEmail ?? "";
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin.auth.admin.getUserById(ownerId);
+    return data.user?.email ?? "";
+  } catch {
+    return "";
+  }
+}
 
 export async function createNouvelleCommande(
   _prev: SoumissionFormState | undefined,
@@ -124,8 +142,19 @@ export async function updateNouvelleCommande(
     .eq("id", soumissionId)
     .maybeSingle();
 
-  if (!existing || existing.user_id !== user.id) {
+  if (!existing) {
     return { error: "Soumission introuvable." };
+  }
+  if (existing.user_id !== user.id) {
+    // Allow admins to proxy-edit any draft.
+    const { data: caller } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (caller?.role !== "admin") {
+      return { error: "Soumission introuvable." };
+    }
   }
   if (existing.status !== "brouillon") {
     return {
@@ -191,8 +220,20 @@ export async function updateNouvelleCommande(
     }
   }
 
-  if (isSubmit && user.email) {
-    await onSoumissionSubmitted(supabase, soumissionId, user.id, user.email);
+  if (isSubmit) {
+    const ownerEmail = await resolveOwnerEmail(
+      user.id,
+      user.email,
+      existing.user_id,
+    );
+    if (ownerEmail) {
+      await onSoumissionSubmitted(
+        supabase,
+        soumissionId,
+        existing.user_id,
+        ownerEmail,
+      );
+    }
   }
 
   revalidatePath("/mes-soumissions");
@@ -299,8 +340,19 @@ export async function updateRemplacement(
     .eq("id", soumissionId)
     .maybeSingle();
 
-  if (!existing || existing.user_id !== user.id) {
+  if (!existing) {
     return { error: "Soumission introuvable." };
+  }
+  if (existing.user_id !== user.id) {
+    // Allow admins to proxy-edit any draft.
+    const { data: caller } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (caller?.role !== "admin") {
+      return { error: "Soumission introuvable." };
+    }
   }
   if (existing.status !== "brouillon") {
     return {
@@ -355,8 +407,20 @@ export async function updateRemplacement(
 
   await uploadInstallationFiles(supabase, soumissionId, formData);
 
-  if (isSubmit && user.email) {
-    await onSoumissionSubmitted(supabase, soumissionId, user.id, user.email);
+  if (isSubmit) {
+    const ownerEmail = await resolveOwnerEmail(
+      user.id,
+      user.email,
+      existing.user_id,
+    );
+    if (ownerEmail) {
+      await onSoumissionSubmitted(
+        supabase,
+        soumissionId,
+        existing.user_id,
+        ownerEmail,
+      );
+    }
   }
 
   revalidatePath("/mes-soumissions");

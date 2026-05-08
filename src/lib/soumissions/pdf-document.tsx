@@ -5,6 +5,8 @@ import {
   View,
   StyleSheet,
 } from "@react-pdf/renderer";
+import { formatPiedsPouces } from "./format";
+import { longueurTotale } from "./rules";
 
 export type PdfOuverture = {
   order_index: number;
@@ -237,11 +239,22 @@ function NouvelleCommandeOuverture({ o }: { o: PdfOuverture }) {
           }
         />
       )}
-      <KV k="Longueur" v={fmtNum(o.longueur_po, " po")} />
+      <KV
+        k="Longueur de l'ouverture"
+        v={formatPiedsPouces(o.longueur_po)}
+      />
+      <KV
+        k="Longueur totale (+ kit 48 po)"
+        v={
+          o.longueur_po !== null
+            ? formatPiedsPouces(longueurTotale(o.longueur_po))
+            : "—"
+        }
+      />
       {isDouble && (
         <KV
           k="Hauteur ouverture totale"
-          v={fmtNum(o.longueur_totale_po, " po")}
+          v={formatPiedsPouces(o.longueur_totale_po)}
         />
       )}
       {!isDouble && (
@@ -302,7 +315,10 @@ function RemplacementOuverture({ o }: { o: PdfOuverture }) {
           v={MODEL_LABEL[o.modele_polymat] ?? o.modele_polymat}
         />
       )}
-      <KV k="Longueur" v={fmtNum(o.longueur_po, " po")} />
+      <KV
+        k="Longueur de l'ouverture"
+        v={formatPiedsPouces(o.longueur_po)}
+      />
       {!isDouble && (
         <>
           <KV

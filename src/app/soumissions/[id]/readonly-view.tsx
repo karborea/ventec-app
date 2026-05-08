@@ -278,11 +278,7 @@ function NouvelleOuvertureFields({ op }: { op: OuvertureRow }) {
           op.rideau_grandeur === "hors_standard") && (
           <Field
             label="Hauteur de l'ouverture totale"
-            value={
-              op.longueur_totale_po !== null
-                ? `${op.longueur_totale_po} po`
-                : "—"
-            }
+            value={formatPiedsPouces(op.longueur_totale_po)}
           />
         )}
       {op.rideau_type === "simple" ? (
