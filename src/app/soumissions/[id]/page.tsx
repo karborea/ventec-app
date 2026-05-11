@@ -20,6 +20,7 @@ type SoumissionRow = {
   status: "brouillon" | "soumis" | "envoye" | "accepte" | "refuse";
   model: "polymat_g3" | "polymat_xl" | null;
   manufacturier_origine: "ventec" | "autre" | null;
+  manufacturier_autre_nom: string | null;
   note_client: string | null;
   created_at: string;
   updated_at: string;
@@ -157,7 +158,7 @@ export default async function SoumissionDetailPage({
   const { data: soumission } = await supabase
     .from("soumissions")
     .select(
-      "id, soumission_number, project_name, type, status, model, manufacturier_origine, note_client, created_at, updated_at, submitted_at",
+      "id, soumission_number, project_name, type, status, model, manufacturier_origine, manufacturier_autre_nom, note_client, created_at, updated_at, submitted_at",
     )
     .eq("id", id)
     .maybeSingle<SoumissionRow>();
@@ -257,6 +258,9 @@ export default async function SoumissionDetailPage({
             action={updateRemplacement.bind(null, soumission.id)}
             initialProjectName={soumission.project_name}
             initialManufacturier={soumission.manufacturier_origine ?? "ventec"}
+            initialManufacturierAutreNom={
+              soumission.manufacturier_autre_nom ?? ""
+            }
             initialOpenings={ouvertures.map(toRemplacementDraft)}
             cancelHref="/mes-soumissions"
           />

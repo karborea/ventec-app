@@ -78,6 +78,8 @@ export type RemplacementOpeningPayload = {
 export type RemplacementFormPayload = {
   project_name: string;
   manufacturier_origine: ManufacturierOrigine | null;
+  /** Free-text company name when manufacturier_origine = "autre". */
+  manufacturier_autre_nom: string | null;
   openings: RemplacementOpeningPayload[];
 };
 
@@ -259,6 +261,10 @@ export function parseRemplacementPayload(
     MANUFACTURIERS.has(p.manufacturier_origine as ManufacturierOrigine)
       ? (p.manufacturier_origine as ManufacturierOrigine)
       : null;
+  const mfrAutreNom =
+    mfr === "autre" && typeof p.manufacturier_autre_nom === "string"
+      ? p.manufacturier_autre_nom.trim() || null
+      : null;
 
   const openingsRaw = Array.isArray(p.openings) ? p.openings : [];
   const openings: RemplacementOpeningPayload[] = openingsRaw.map((o) => {
@@ -320,6 +326,7 @@ export function parseRemplacementPayload(
   return {
     project_name: projectName,
     manufacturier_origine: mfr,
+    manufacturier_autre_nom: mfrAutreNom,
     openings,
   };
 }
@@ -329,6 +336,15 @@ export function validateRemplacementForSubmission(
 ): { ok: true } | { ok: false; error: string } {
   if (!payload.manufacturier_origine) {
     return { ok: false, error: "Sélectionnez le manufacturier d'origine." };
+  }
+  if (
+    payload.manufacturier_origine === "autre" &&
+    !payload.manufacturier_autre_nom
+  ) {
+    return {
+      ok: false,
+      error: "Indiquez le nom de la compagnie du manufacturier d'origine.",
+    };
   }
   if (payload.openings.length === 0) {
     return { ok: false, error: "Au moins une ouverture est requise." };

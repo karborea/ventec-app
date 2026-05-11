@@ -40,6 +40,7 @@ export type PdfSoumission = {
   type: "nouvelle_commande" | "remplacement";
   model: string | null;
   manufacturier_origine: string | null;
+  manufacturier_autre_nom: string | null;
   submitted_at: string | null;
   ouvertures: PdfOuverture[];
 };
@@ -410,7 +411,7 @@ export function SoumissionPdf({
                 <Text style={styles.metaValue}>
                   {soumission.manufacturier_origine === "ventec"
                     ? "Ventec"
-                    : "Autre"}
+                    : soumission.manufacturier_autre_nom || "Autre"}
                 </Text>
               </View>
             )}

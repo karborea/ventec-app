@@ -43,6 +43,7 @@ type SoumissionRow = {
   type: "nouvelle_commande" | "remplacement";
   model: string | null;
   manufacturier_origine: string | null;
+  manufacturier_autre_nom: string | null;
   submitted_at: string | null;
 };
 
@@ -151,7 +152,7 @@ export async function onSoumissionSubmitted(
       supabase
         .from("soumissions")
         .select(
-          "id, soumission_number, project_name, type, model, manufacturier_origine, submitted_at",
+          "id, soumission_number, project_name, type, model, manufacturier_origine, manufacturier_autre_nom, submitted_at",
         )
         .eq("id", soumissionId)
         .maybeSingle<SoumissionRow>(),
@@ -189,6 +190,7 @@ export async function onSoumissionSubmitted(
       type: sRes.data.type,
       model: sRes.data.model,
       manufacturier_origine: sRes.data.manufacturier_origine,
+      manufacturier_autre_nom: sRes.data.manufacturier_autre_nom,
       submitted_at: sRes.data.submitted_at,
       ouvertures: ouverturesRows.map(toPdfOuverture),
     };

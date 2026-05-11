@@ -10,6 +10,7 @@ type SoumissionRow = {
   status: "brouillon" | "soumis" | "envoye" | "accepte" | "refuse";
   model: "polymat_g3" | "polymat_xl" | null;
   manufacturier_origine: "ventec" | "autre" | null;
+  manufacturier_autre_nom: string | null;
   note_client: string | null;
   created_at: string;
   updated_at: string;
@@ -146,7 +147,12 @@ export function SoumissionReadonly({
           {isRemplacement && soumission.manufacturier_origine && (
             <Field
               label="Manufacturier d'origine"
-              value={MFR_LABELS[soumission.manufacturier_origine]}
+              value={
+                soumission.manufacturier_origine === "autre" &&
+                soumission.manufacturier_autre_nom
+                  ? `${MFR_LABELS.autre} — ${soumission.manufacturier_autre_nom}`
+                  : MFR_LABELS[soumission.manufacturier_origine]
+              }
             />
           )}
           <Field label="Créé le" value={formatDate(soumission.created_at)} />

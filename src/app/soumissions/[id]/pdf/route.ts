@@ -19,6 +19,7 @@ type SoumissionRow = {
   type: "nouvelle_commande" | "remplacement";
   model: string | null;
   manufacturier_origine: string | null;
+  manufacturier_autre_nom: string | null;
   submitted_at: string | null;
   pdf_path: string | null;
 };
@@ -102,7 +103,7 @@ export async function GET(
   const { data: s } = await supabase
     .from("soumissions")
     .select(
-      "id, user_id, soumission_number, project_name, type, model, manufacturier_origine, submitted_at, pdf_path",
+      "id, user_id, soumission_number, project_name, type, model, manufacturier_origine, manufacturier_autre_nom, submitted_at, pdf_path",
     )
     .eq("id", id)
     .maybeSingle<SoumissionRow>();
@@ -165,6 +166,7 @@ export async function GET(
     type: s.type,
     model: s.model,
     manufacturier_origine: s.manufacturier_origine,
+    manufacturier_autre_nom: s.manufacturier_autre_nom,
     submitted_at: s.submitted_at,
     ouvertures: ((oRes.data ?? []) as OuvertureRow[]).map(toPdfOuverture),
   };

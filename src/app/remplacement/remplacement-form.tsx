@@ -63,6 +63,7 @@ type Props = {
   action: FormAction;
   initialProjectName?: string;
   initialManufacturier?: ManufacturierOrigine;
+  initialManufacturierAutreNom?: string;
   initialOpenings?: RemplacementOpeningDraft[];
   cancelHref?: string;
   hiddenFields?: Record<string, string>;
@@ -108,6 +109,7 @@ export function RemplacementForm({
   action,
   initialProjectName = "",
   initialManufacturier = "ventec",
+  initialManufacturierAutreNom = "",
   initialOpenings,
   cancelHref = "/mes-soumissions",
   hiddenFields,
@@ -120,6 +122,9 @@ export function RemplacementForm({
   const [projectName, setProjectName] = useState(initialProjectName);
   const [manufacturier, setManufacturier] =
     useState<ManufacturierOrigine>(initialManufacturier);
+  const [manufacturierAutreNom, setManufacturierAutreNom] = useState(
+    initialManufacturierAutreNom,
+  );
   const [openings, setOpenings] = useState<RemplacementOpeningDraft[]>(
     initialOpenings && initialOpenings.length > 0
       ? initialOpenings
@@ -213,6 +218,8 @@ export function RemplacementForm({
       JSON.stringify({
         project_name: projectName,
         manufacturier_origine: manufacturier,
+        manufacturier_autre_nom:
+          manufacturier === "autre" ? manufacturierAutreNom : null,
         // Convertit longueur_pi + longueur_po (résidu) en pouces totaux
         // avant envoi au server.
         openings: openings.map((op) => {
@@ -228,7 +235,7 @@ export function RemplacementForm({
           };
         }),
       }),
-    [projectName, manufacturier, openings],
+    [projectName, manufacturier, manufacturierAutreNom, openings],
   );
 
   // Choix de souffleurs : 1–4 pour Ventec, 1–8 pour autre manufacturier.
@@ -330,8 +337,10 @@ export function RemplacementForm({
               </div>
               <div className="flex justify-between gap-3">
                 <dt className="text-[#5a6278]">Manufacturier</dt>
-                <dd className="font-semibold">
-                  {manufacturier === "ventec" ? "Ventec" : "Autre"}
+                <dd className="font-semibold text-right truncate max-w-[180px]">
+                  {manufacturier === "ventec"
+                    ? "Ventec"
+                    : manufacturierAutreNom || "Autre"}
                 </dd>
               </div>
               <div className="flex justify-between gap-3">
@@ -566,6 +575,30 @@ export function RemplacementForm({
                   </div>
                 </button>
               </div>
+
+              {manufacturier === "autre" && (
+                <div className="mt-4">
+                  <label
+                    htmlFor="manufacturier-autre-nom"
+                    className="block text-sm font-semibold mb-1"
+                  >
+                    Nom de la compagnie{" "}
+                    <span className="text-[#f37021]">*</span>
+                  </label>
+                  <p className="text-xs text-[#5a6278] mb-2">
+                    Indiquez le manufacturier d&apos;origine du système
+                    installé.
+                  </p>
+                  <input
+                    id="manufacturier-autre-nom"
+                    type="text"
+                    value={manufacturierAutreNom}
+                    onChange={(e) => setManufacturierAutreNom(e.target.value)}
+                    placeholder="Ex: Hupp, Berg, etc."
+                    className="w-full min-h-12 px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

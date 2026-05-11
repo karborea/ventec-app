@@ -173,6 +173,7 @@ export async function createRemplacementAsAdmin(
       type: "remplacement",
       model: null,
       manufacturier_origine: payload.manufacturier_origine,
+      manufacturier_autre_nom: payload.manufacturier_autre_nom,
       status: isSubmit ? "soumis" : "brouillon",
       submitted_at: isSubmit ? new Date().toISOString() : null,
     })
