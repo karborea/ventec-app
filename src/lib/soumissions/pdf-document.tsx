@@ -255,7 +255,7 @@ function NouvelleCommandeOuverture({ o }: { o: PdfOuverture }) {
       {isDouble && (
         <KV
           k="Hauteur ouverture totale"
-          v={formatPiedsPouces(o.longueur_totale_po)}
+          v={fmtNum(o.longueur_totale_po, " po")}
         />
       )}
       {!isDouble && (
