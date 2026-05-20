@@ -52,6 +52,7 @@ export type RemplacementOpeningDraft = {
   /** Systeme double : souffleurs côté bas (1–4). */
   souffleurs_count_bas: string;
   souffleurs_aux_deux_extremites: boolean;
+  souffleurs_instructions_speciales: string;
 };
 
 type FormAction = (
@@ -85,6 +86,7 @@ function emptyOpening(): RemplacementOpeningDraft {
     souffleurs_count: "",
     souffleurs_count_haut: "",
     souffleurs_count_bas: "",
+    souffleurs_instructions_speciales: "",
     souffleurs_aux_deux_extremites: false,
   };
 }
@@ -1091,6 +1093,35 @@ export function RemplacementForm({
                     </div>
                   </div>
                 </label>
+
+                {manufacturier === "ventec" &&
+                  (active.souffleurs_count ||
+                    active.souffleurs_count_haut ||
+                    active.souffleurs_count_bas) && (
+                    <div className="mt-4">
+                      <label
+                        htmlFor="souffleurs-instructions"
+                        className="block text-sm font-semibold mb-1"
+                      >
+                        Instructions spéciales{" "}
+                        <span className="text-xs font-normal text-[#5a6278]">
+                          (optionnel)
+                        </span>
+                      </label>
+                      <textarea
+                        id="souffleurs-instructions"
+                        value={active.souffleurs_instructions_speciales}
+                        onChange={(e) =>
+                          updateActive({
+                            souffleurs_instructions_speciales: e.target.value,
+                          })
+                        }
+                        placeholder="Veuillez inscrire toutes instructions spéciales pour l'installation des souffleries. Par exemple. le nombre de souffleries par cellules"
+                        rows={3}
+                        className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20 text-sm"
+                      />
+                    </div>
+                  )}
               </section>
 
               {/* Fichiers d'installation actuels */}

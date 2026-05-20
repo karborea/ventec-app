@@ -91,6 +91,8 @@ export async function createNouvelleCommande(
     polymat_bas_hauteur_po: op.polymat_bas_hauteur_po ?? null,
     souffleurs_count: op.souffleurs_count ?? null,
     souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites ?? false,
+    souffleurs_instructions_speciales:
+      op.souffleurs_instructions_speciales ?? null,
   }));
 
   if (ouverturesRows.length > 0) {
@@ -209,6 +211,8 @@ export async function updateNouvelleCommande(
     polymat_bas_hauteur_po: op.polymat_bas_hauteur_po ?? null,
     souffleurs_count: op.souffleurs_count ?? null,
     souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites ?? false,
+    souffleurs_instructions_speciales:
+      op.souffleurs_instructions_speciales ?? null,
   }));
 
   if (ouverturesRows.length > 0) {

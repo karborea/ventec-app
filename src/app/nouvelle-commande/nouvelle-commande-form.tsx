@@ -51,6 +51,7 @@ export type OpeningDraft = {
   polymat_bas_hauteur_po: string;
   souffleurs_count: string;
   souffleurs_aux_deux_extremites: boolean;
+  souffleurs_instructions_speciales: string;
 };
 
 type FormAction = (
@@ -85,7 +86,7 @@ function emptyOpening(): OpeningDraft {
     hauteur_totale_pi: "",
     hauteur_totale_po: "",
     materiau_haut: "bois",
-    materiau_bas: "acier",
+    materiau_bas: "beton",
     rideau_type: "simple",
     rideau_grandeur: "",
     polymat_unique_hauteur_po: "",
@@ -93,6 +94,7 @@ function emptyOpening(): OpeningDraft {
     polymat_bas_hauteur_po: "",
     souffleurs_count: "",
     souffleurs_aux_deux_extremites: false,
+    souffleurs_instructions_speciales: "",
   };
 }
 
@@ -1095,6 +1097,32 @@ export function NouvelleCommandeForm({
                   </div>
                 </div>
               </label>
+
+              {active.souffleurs_count && (
+                <div className="mt-4">
+                  <label
+                    htmlFor="souffleurs-instructions"
+                    className="block text-sm font-semibold mb-1"
+                  >
+                    Instructions spéciales{" "}
+                    <span className="text-xs font-normal text-[#5a6278]">
+                      (optionnel)
+                    </span>
+                  </label>
+                  <textarea
+                    id="souffleurs-instructions"
+                    value={active.souffleurs_instructions_speciales}
+                    onChange={(e) =>
+                      updateActive({
+                        souffleurs_instructions_speciales: e.target.value,
+                      })
+                    }
+                    placeholder="Veuillez inscrire toutes instructions spéciales pour l'installation des souffleries. Par exemple. le nombre de souffleries par cellules"
+                    rows={3}
+                    className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-[#e3e6ec] bg-white focus:outline-none focus:border-[#1b9ae0] focus:ring-[3px] focus:ring-[#1b9ae0]/20 text-sm"
+                  />
+                </div>
+              )}
             </section>
             </div>
           </div>

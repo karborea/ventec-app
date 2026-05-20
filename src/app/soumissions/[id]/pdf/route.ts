@@ -39,6 +39,7 @@ type OuvertureRow = {
   souffleurs_count_haut: number | null;
   souffleurs_count_bas: number | null;
   souffleurs_aux_deux_extremites: boolean | null;
+  souffleurs_instructions_speciales: string | null;
   systeme: string | null;
   rideau_a_remplacer: string | null;
   hauteur_support_simple_po: number | null;
@@ -74,6 +75,7 @@ function toPdfOuverture(r: OuvertureRow): PdfOuverture {
     souffleurs_count_haut: r.souffleurs_count_haut,
     souffleurs_count_bas: r.souffleurs_count_bas,
     souffleurs_aux_deux_extremites: r.souffleurs_aux_deux_extremites,
+    souffleurs_instructions_speciales: r.souffleurs_instructions_speciales,
     systeme: r.systeme,
     rideau_a_remplacer: r.rideau_a_remplacer,
     hauteur_support_simple_po: r.hauteur_support_simple_po,
@@ -127,7 +129,7 @@ export async function GET(
     supabase
       .from("ouvertures")
       .select(
-        "order_index, longueur_po, longueur_totale_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_count_haut, souffleurs_count_bas, souffleurs_aux_deux_extremites, systeme, rideau_a_remplacer, hauteur_support_simple_po, hauteur_support_haut_po, hauteur_support_bas_po, modele_polymat, nb_cellules_simple, nb_cellules_haut, nb_cellules_bas",
+        "order_index, longueur_po, longueur_totale_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_count_haut, souffleurs_count_bas, souffleurs_aux_deux_extremites, souffleurs_instructions_speciales, systeme, rideau_a_remplacer, hauteur_support_simple_po, hauteur_support_haut_po, hauteur_support_bas_po, modele_polymat, nb_cellules_simple, nb_cellules_haut, nb_cellules_bas",
       )
       .eq("soumission_id", id)
       .order("order_index"),

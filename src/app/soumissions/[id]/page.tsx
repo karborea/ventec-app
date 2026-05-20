@@ -41,6 +41,7 @@ export type OuvertureRow = {
   polymat_bas_hauteur_po: number | null;
   souffleurs_count: number | null;
   souffleurs_aux_deux_extremites: boolean;
+  souffleurs_instructions_speciales: string | null;
   // Remplacement fields
   systeme: "simple" | "double" | null;
   rideau_a_remplacer: "haut" | "bas" | "les_deux" | null;
@@ -78,7 +79,7 @@ function toNouvelleDraft(op: OuvertureRow): OpeningDraft {
     hauteur_totale_pi: hPi !== null ? String(hPi) : "",
     hauteur_totale_po: hPo !== null && hPo > 0 ? String(hPo) : "",
     materiau_haut: (op.materiau_haut ?? "bois") as OpeningDraft["materiau_haut"],
-    materiau_bas: (op.materiau_bas ?? "acier") as OpeningDraft["materiau_bas"],
+    materiau_bas: (op.materiau_bas ?? "beton") as OpeningDraft["materiau_bas"],
     rideau_type: (op.rideau_type ?? "simple") as OpeningDraft["rideau_type"],
     rideau_grandeur: (op.rideau_grandeur ??
       "") as OpeningDraft["rideau_grandeur"],
@@ -97,6 +98,8 @@ function toNouvelleDraft(op: OuvertureRow): OpeningDraft {
     souffleurs_count:
       op.souffleurs_count !== null ? String(op.souffleurs_count) : "",
     souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites === true,
+    souffleurs_instructions_speciales:
+      op.souffleurs_instructions_speciales ?? "",
   };
 }
 
@@ -144,6 +147,8 @@ function toRemplacementDraft(op: OuvertureRow): RemplacementOpeningDraft {
     souffleurs_count_bas:
       op.souffleurs_count_bas !== null ? String(op.souffleurs_count_bas) : "",
     souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites === true,
+    souffleurs_instructions_speciales:
+      op.souffleurs_instructions_speciales ?? "",
   };
 }
 
@@ -170,7 +175,7 @@ export default async function SoumissionDetailPage({
   const { data: ouverturesData } = await supabase
     .from("ouvertures")
     .select(
-      "id, order_index, longueur_po, longueur_totale_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_count_haut, souffleurs_count_bas, souffleurs_aux_deux_extremites, systeme, rideau_a_remplacer, hauteur_support_simple_po, hauteur_support_haut_po, hauteur_support_bas_po, modele_polymat, nb_cellules_simple, nb_cellules_haut, nb_cellules_bas",
+      "id, order_index, longueur_po, longueur_totale_po, materiau_haut, materiau_bas, rideau_type, rideau_grandeur, polymat_unique_hauteur_po, polymat_haut_hauteur_po, polymat_bas_hauteur_po, souffleurs_count, souffleurs_count_haut, souffleurs_count_bas, souffleurs_aux_deux_extremites, souffleurs_instructions_speciales, systeme, rideau_a_remplacer, hauteur_support_simple_po, hauteur_support_haut_po, hauteur_support_bas_po, modele_polymat, nb_cellules_simple, nb_cellules_haut, nb_cellules_bas",
     )
     .eq("soumission_id", id)
     .order("order_index");

@@ -51,6 +51,7 @@ export type OpeningPayload = {
   polymat_bas_hauteur_po?: number | null;
   souffleurs_count?: number | null;
   souffleurs_aux_deux_extremites?: boolean;
+  souffleurs_instructions_speciales?: string | null;
 };
 
 export type FormPayload = {
@@ -73,6 +74,7 @@ export type RemplacementOpeningPayload = {
   souffleurs_count_haut?: number | null;
   souffleurs_count_bas?: number | null;
   souffleurs_aux_deux_extremites?: boolean;
+  souffleurs_instructions_speciales?: string | null;
 };
 
 export type RemplacementFormPayload = {
@@ -157,6 +159,10 @@ export function parsePayload(raw: unknown): FormPayload | null {
       souffleurs_count: toInt(op.souffleurs_count),
       souffleurs_aux_deux_extremites:
         op.souffleurs_aux_deux_extremites === true,
+      souffleurs_instructions_speciales:
+        typeof op.souffleurs_instructions_speciales === "string"
+          ? op.souffleurs_instructions_speciales.trim() || null
+          : null,
     };
   });
 
@@ -320,6 +326,10 @@ export function parseRemplacementPayload(
         isDouble && wantBas ? toInt(op.souffleurs_count_bas) : null,
       souffleurs_aux_deux_extremites:
         op.souffleurs_aux_deux_extremites === true,
+      souffleurs_instructions_speciales:
+        typeof op.souffleurs_instructions_speciales === "string"
+          ? op.souffleurs_instructions_speciales.trim() || null
+          : null,
     };
   });
 
@@ -458,5 +468,7 @@ export function remplacementOuvertureRow(
     souffleurs_count_haut: op.souffleurs_count_haut ?? null,
     souffleurs_count_bas: op.souffleurs_count_bas ?? null,
     souffleurs_aux_deux_extremites: op.souffleurs_aux_deux_extremites ?? false,
+    souffleurs_instructions_speciales:
+      op.souffleurs_instructions_speciales ?? null,
   };
 }

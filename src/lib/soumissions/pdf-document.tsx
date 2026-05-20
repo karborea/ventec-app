@@ -23,6 +23,7 @@ export type PdfOuverture = {
   souffleurs_count_haut: number | null;
   souffleurs_count_bas: number | null;
   souffleurs_aux_deux_extremites: boolean | null;
+  souffleurs_instructions_speciales: string | null;
   systeme: string | null;
   rideau_a_remplacer: string | null;
   hauteur_support_simple_po: number | null;
@@ -286,6 +287,12 @@ function NouvelleCommandeOuverture({ o }: { o: PdfOuverture }) {
         k="Aux deux extrémités"
         v={o.souffleurs_aux_deux_extremites ? "Oui" : "Non"}
       />
+      {o.souffleurs_instructions_speciales && (
+        <KV
+          k="Instructions spéciales"
+          v={o.souffleurs_instructions_speciales}
+        />
+      )}
     </View>
   );
 }
@@ -362,6 +369,12 @@ function RemplacementOuverture({ o }: { o: PdfOuverture }) {
         k="Aux deux extrémités"
         v={o.souffleurs_aux_deux_extremites ? "Oui" : "Non"}
       />
+      {o.souffleurs_instructions_speciales && (
+        <KV
+          k="Instructions spéciales"
+          v={o.souffleurs_instructions_speciales}
+        />
+      )}
     </View>
   );
 }

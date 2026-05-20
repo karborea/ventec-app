@@ -329,6 +329,14 @@ function NouvelleOuvertureFields({ op }: { op: OuvertureRow }) {
         label="Souffleries aux deux extrémités"
         value={op.souffleurs_aux_deux_extremites ? "Oui" : "Non"}
       />
+      {op.souffleurs_instructions_speciales && (
+        <div className="md:col-span-2 border-b border-dashed border-[#e3e6ec] pb-2">
+          <dt className="text-[#5a6278] mb-1">Instructions spéciales</dt>
+          <dd className="font-semibold whitespace-pre-wrap">
+            {op.souffleurs_instructions_speciales}
+          </dd>
+        </div>
+      )}
     </dl>
   );
 }
@@ -463,6 +471,14 @@ function RemplacementOuvertureFields({
         label="Souffleries aux deux extrémités"
         value={op.souffleurs_aux_deux_extremites ? "Oui" : "Non"}
       />
+      {op.souffleurs_instructions_speciales && (
+        <div className="md:col-span-2 border-b border-dashed border-[#e3e6ec] pb-2">
+          <dt className="text-[#5a6278] mb-1">Instructions spéciales</dt>
+          <dd className="font-semibold whitespace-pre-wrap">
+            {op.souffleurs_instructions_speciales}
+          </dd>
+        </div>
+      )}
     </dl>
   );
 }
