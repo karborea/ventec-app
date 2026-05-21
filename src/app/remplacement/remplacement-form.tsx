@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState, useMemo, useState } from "react";
 import type { SoumissionFormState } from "@/lib/soumissions/payload";
 import {
@@ -9,7 +10,6 @@ import {
 } from "@/lib/soumissions/rules";
 import { HauteurIcon, LongueurIcon } from "@/components/measurement-icons";
 import { FileDropzone } from "@/components/file-dropzone";
-import { PolymatDrawing } from "./polymat-drawing";
 
 type ManufacturierOrigine = "ventec" | "autre";
 type Systeme = "simple" | "double";
@@ -320,8 +320,11 @@ export function RemplacementForm({
               Schéma du système
             </h3>
             <div className="mb-5 flex justify-center">
-              <PolymatDrawing
-                systeme={active.systeme}
+              <Image
+                src="/img/schema-polymat.jpeg"
+                alt="Schéma Polymat"
+                width={671}
+                height={1024}
                 className="h-48 w-auto"
               />
             </div>
@@ -822,8 +825,11 @@ export function RemplacementForm({
                               : "border-[#e3e6ec] bg-white hover:border-[#1b9ae0]"
                           }`}
                         >
-                          <PolymatDrawing
-                            systeme="double"
+                          <Image
+                            src="/img/single-polymat.png"
+                            alt="Polymat"
+                            width={51}
+                            height={92}
                             className="h-20 w-auto"
                           />
                           <span className="text-[13px] font-semibold">
